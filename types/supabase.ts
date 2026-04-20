@@ -36,6 +36,7 @@ export type Database = {
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['pengguna']['Insert']>
+        Relationships: []
       }
       anggota: {
         Row: {
@@ -67,6 +68,15 @@ export type Database = {
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['anggota']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'anggota_id_pengguna_fkey'
+            columns: ['id_pengguna']
+            isOneToOne: true
+            referencedRelation: 'pengguna'
+            referencedColumns: ['id_pengguna']
+          },
+        ]
       }
       kategori: {
         Row: {
@@ -82,6 +92,7 @@ export type Database = {
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['kategori']['Insert']>
+        Relationships: []
       }
       buku: {
         Row: {
@@ -117,6 +128,15 @@ export type Database = {
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['buku']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'buku_id_kategori_fkey'
+            columns: ['id_kategori']
+            isOneToOne: false
+            referencedRelation: 'kategori'
+            referencedColumns: ['id_kategori']
+          },
+        ]
       }
       cart_items: {
         Row: {
@@ -132,6 +152,22 @@ export type Database = {
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['cart_items']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'cart_items_id_anggota_fkey'
+            columns: ['id_anggota']
+            isOneToOne: false
+            referencedRelation: 'anggota'
+            referencedColumns: ['id_anggota']
+          },
+          {
+            foreignKeyName: 'cart_items_id_buku_fkey'
+            columns: ['id_buku']
+            isOneToOne: false
+            referencedRelation: 'buku'
+            referencedColumns: ['id_buku']
+          },
+        ]
       }
       transaksi: {
         Row: {
@@ -173,6 +209,22 @@ export type Database = {
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['transaksi']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'transaksi_id_anggota_fkey'
+            columns: ['id_anggota']
+            isOneToOne: false
+            referencedRelation: 'anggota'
+            referencedColumns: ['id_anggota']
+          },
+          {
+            foreignKeyName: 'transaksi_id_buku_fkey'
+            columns: ['id_buku']
+            isOneToOne: false
+            referencedRelation: 'buku'
+            referencedColumns: ['id_buku']
+          },
+        ]
       }
       ulasan_buku: {
         Row: {
@@ -194,6 +246,22 @@ export type Database = {
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['ulasan_buku']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'ulasan_buku_id_anggota_fkey'
+            columns: ['id_anggota']
+            isOneToOne: false
+            referencedRelation: 'anggota'
+            referencedColumns: ['id_anggota']
+          },
+          {
+            foreignKeyName: 'ulasan_buku_id_buku_fkey'
+            columns: ['id_buku']
+            isOneToOne: false
+            referencedRelation: 'buku'
+            referencedColumns: ['id_buku']
+          },
+        ]
       }
       feeds: {
         Row: {
@@ -219,6 +287,22 @@ export type Database = {
           created_at?: string | null
         }
         Update: Partial<Database['public']['Tables']['feeds']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'feeds_id_anggota_fkey'
+            columns: ['id_anggota']
+            isOneToOne: false
+            referencedRelation: 'anggota'
+            referencedColumns: ['id_anggota']
+          },
+          {
+            foreignKeyName: 'feeds_id_buku_fkey'
+            columns: ['id_buku']
+            isOneToOne: false
+            referencedRelation: 'buku'
+            referencedColumns: ['id_buku']
+          },
+        ]
       }
       feed_likes: {
         Row: {
@@ -232,6 +316,22 @@ export type Database = {
           id_anggota?: number | null
         }
         Update: Partial<Database['public']['Tables']['feed_likes']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'feed_likes_id_anggota_fkey'
+            columns: ['id_anggota']
+            isOneToOne: false
+            referencedRelation: 'anggota'
+            referencedColumns: ['id_anggota']
+          },
+          {
+            foreignKeyName: 'feed_likes_id_feed_fkey'
+            columns: ['id_feed']
+            isOneToOne: false
+            referencedRelation: 'feeds'
+            referencedColumns: ['id_feed']
+          },
+        ]
       }
       feed_comments: {
         Row: {
@@ -249,6 +349,22 @@ export type Database = {
           created_at?: string | null
         }
         Update: Partial<Database['public']['Tables']['feed_comments']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'feed_comments_id_anggota_fkey'
+            columns: ['id_anggota']
+            isOneToOne: false
+            referencedRelation: 'anggota'
+            referencedColumns: ['id_anggota']
+          },
+          {
+            foreignKeyName: 'feed_comments_id_feed_fkey'
+            columns: ['id_feed']
+            isOneToOne: false
+            referencedRelation: 'feeds'
+            referencedColumns: ['id_feed']
+          },
+        ]
       }
     }
     Views: {
@@ -266,6 +382,7 @@ export type Database = {
           total_denda_belum_bayar: number
           transaksi_hari_ini: number
         }
+        Relationships: []
       }
       v_transaksi_aktif: {
         Row: {
@@ -288,6 +405,7 @@ export type Database = {
           qr_action: string
           created_at: string
         }
+        Relationships: []
       }
       v_denda_per_anggota: {
         Row: {
@@ -297,6 +415,22 @@ export type Database = {
           denda_belum_bayar: number
           jumlah_transaksi_denda: number
         }
+        Relationships: []
+      }
+      v_monitoring_denda: {
+        Row: {
+          id_transaksi: number
+          nama_anggota: string
+          nis: string
+          email: string | null
+          kelas: string | null
+          judul_buku: string
+          tgl_pinjam: string
+          tgl_kembali_rencana: string
+          hari_keterlambatan: number
+          denda_realtime: number
+        }
+        Relationships: []
       }
       v_katalog_buku: {
         Row: {
@@ -314,6 +448,7 @@ export type Database = {
           rating_rata_rata: number | null
           jumlah_ulasan: number
         }
+        Relationships: []
       }
     }
     Functions: {

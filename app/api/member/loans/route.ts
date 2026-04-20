@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/types/supabase'
+import type { StatusTransaksi } from '@/types'
 
 type PenggunaRow = Database['public']['Tables']['pengguna']['Row']
 type AnggotaRow  = Database['public']['Tables']['anggota']['Row']
@@ -13,9 +14,29 @@ interface PenggunaWithAnggota extends Pick<PenggunaRow, 'id_pengguna'> {
 }
 
 // 1. TAMBAHKAN properti opsional jml_perpanjangan ke interface ini
-interface TransaksiWithBuku extends TransaksiRow {
+type TransaksiWithBuku = Pick<
+  TransaksiRow,
+  | 'id_transaksi'
+  | 'id_anggota'
+  | 'id_buku'
+  | 'tgl_pinjam'
+  | 'tgl_kembali_rencana'
+  | 'tgl_kembali_aktual'
+  | 'status_transaksi'
+  | 'qr_token'
+  | 'denda'
+  | 'denda_dibayar'
+  | 'catatan'
+  | 'created_at'
+  | 'jml_perpanjangan'
+> & {
   buku: Pick<BukuRow, 'judul_buku' | 'pengarang' | 'gambar_buku'> | null
-  jml_perpanjangan?: number | null // Tambahan baru
+}
+
+const STATUS_TRANSAKSI = ['pending', 'dipinjam', 'dikembalikan', 'terlambat', 'dibatalkan'] as const
+
+function isStatusTransaksi(value: string): value is StatusTransaksi {
+  return STATUS_TRANSAKSI.includes(value as StatusTransaksi)
 }
 
 // helper — ambil id_anggota dari userid
@@ -54,7 +75,7 @@ export async function GET(req: NextRequest) {
     .eq('id_anggota', idAnggota)
     .order('created_at', { ascending: false })
 
-  if (status !== 'all') {
+  if (status !== 'all' && isStatusTransaksi(status)) {
     query = query.eq('status_transaksi', status)
   }
 

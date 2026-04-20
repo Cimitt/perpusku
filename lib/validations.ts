@@ -8,7 +8,7 @@ export const bukuSchema = z.object({
   tahun_terbit: z.number().int().min(1000).max(9999).nullable(),
   isbn: z.string().max(20).nullable(),
   deskripsi_buku: z.string().nullable(),
-  stok: z.number().int().min(0).default(1),
+  stok: z.number().int().min(0),
 })
 
 export const kategoriSchema = z.object({

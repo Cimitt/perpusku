@@ -11,13 +11,13 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import type { Book } from '@/app/(dashboard)/admin/books/page'
+import type { BukuAdmin } from '@/types'
 
 interface DeleteBookDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => Promise<void>
-  book: Book | null
+  book: BukuAdmin | null
 }
 
 export function DeleteBookDialog({

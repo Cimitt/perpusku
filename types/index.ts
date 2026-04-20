@@ -38,6 +38,7 @@ export type UlasanBukuUpdate = Database['public']['Tables']['ulasan_buku']['Upda
 export type VStatistikDashboard = Database['public']['Views']['v_statistik_dashboard']['Row']
 export type VTransaksiAktif     = Database['public']['Views']['v_transaksi_aktif']['Row']
 export type VDendaPerAnggota    = Database['public']['Views']['v_denda_per_anggota']['Row']
+export type VMonitoringDenda    = Database['public']['Views']['v_monitoring_denda']['Row']
 export type VKatalogBuku        = Database['public']['Views']['v_katalog_buku']['Row']
 
 // enum types

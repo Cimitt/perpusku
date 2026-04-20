@@ -124,7 +124,7 @@ export default function MyFeedsPage() {
                     <div className='flex items-start justify-between gap-2'>
                       <div className='min-w-0'>
                         <p className='text-xs text-slate-400 font-medium mb-1'>
-                          {format(new Date(feed.created_at), 'dd MMM yyyy • HH:mm', { locale: id })}
+                          {format(new Date(feed.created_at ?? Date.now()), 'dd MMM yyyy • HH:mm', { locale: id })}
                         </p>
                         {feed.buku?.judul_buku && (
                           <p className='text-[10px] font-bold tracking-wider text-primary uppercase line-clamp-1'>
@@ -148,8 +148,8 @@ export default function MyFeedsPage() {
 
                     <div className='mt-3 flex items-center gap-4'>
                       <div className='flex items-center gap-1.5 text-slate-500'>
-                        <HeartIcon className={`size-4 ${feed.likes_count > 0 ? 'fill-rose-500 text-rose-500' : ''}`} />
-                        <span className='text-xs font-semibold'>{feed.likes_count}</span>
+                        <HeartIcon className={`size-4 ${(feed.likes_count ?? 0) > 0 ? 'fill-rose-500 text-rose-500' : ''}`} />
+                        <span className='text-xs font-semibold'>{feed.likes_count ?? 0}</span>
                       </div>
                     </div>
                   </div>

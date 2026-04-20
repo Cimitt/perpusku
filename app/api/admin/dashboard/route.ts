@@ -128,7 +128,7 @@ export async function GET(request: Request) {
         const status = trx.status_transaksi
         if (status === 'dipinjam') {
           targetDay.dipinjam++
-        } else if (status === 'dikembalikan' || status === 'kembali') {
+        } else if (status === 'dikembalikan') {
           targetDay.kembali++
         } else if (status === 'terlambat') {
           targetDay.terlambat++

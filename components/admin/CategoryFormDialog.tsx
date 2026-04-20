@@ -15,13 +15,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { kategoriSchema, type KategoriFormData } from '@/lib/validations'
-import type { Category } from '@/app/(dashboard)/admin/categories/page'
+import type { Kategori } from '@/types'
 
 interface CategoryFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (nama: string, deskripsi: string | null) => Promise<void>
-  category?: Category | null
+  category?: Kategori | null
   mode: 'create' | 'edit'
 }
 

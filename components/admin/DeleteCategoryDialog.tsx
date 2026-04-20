@@ -11,13 +11,13 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import type { Category } from '@/app/(dashboard)/admin/categories/page'
+import type { Kategori } from '@/types'
 
 interface DeleteCategoryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => Promise<void>
-  category: Category | null
+  category: Kategori | null
 }
 
 export function DeleteCategoryDialog({

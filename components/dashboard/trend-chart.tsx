@@ -45,7 +45,7 @@ export function TrendChart({ data, days, loading, onDaysChange }: TrendChartProp
           <CardTitle className="text-sm font-medium">
             Tren Peminjaman Harian
           </CardTitle>
-          <Select value={days} onValueChange={onDaysChange}>
+          <Select value={days} onValueChange={(value) => value && onDaysChange(value)}>
             <SelectTrigger className="h-8 w-[150px] text-xs">
               <SelectValue placeholder="Pilih Rentang" />
             </SelectTrigger>

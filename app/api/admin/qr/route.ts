@@ -18,6 +18,10 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const token = new URL(req.url).searchParams.get('token')
+  if (!token) {
+    return NextResponse.json({ error: 'Token QR tidak valid.' }, { status: 400 })
+  }
+
   const supabase = createAdminClient()
 
   const { data: trxList, error } = await supabase

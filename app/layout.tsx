@@ -1,13 +1,7 @@
 import type { Metadata } from 'next'
-import { Geist } from 'next/font/google'
 import { ClerkProvider } from '@clerk/nextjs'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
-
-const geist = Geist({
-  variable: '--font-geist',
-  subsets: ['latin'],
-})
 
 export const metadata: Metadata = {
   title: 'PerpuSmuhda',
@@ -22,7 +16,7 @@ export default function RootLayout({
       {/* Tambahkan suppressHydrationWarning pada tag html */}
       <html 
         lang="id" 
-        className={`${geist.variable} h-full antialiased`} 
+        className="h-full antialiased"
         suppressHydrationWarning
       >
         {/* Tambahkan juga pada tag body */}

@@ -15,6 +15,8 @@ import {
   Loader2,
   StarIcon,
   MessageSquareIcon,
+  ChevronDownIcon,
+  TagsIcon,
 } from 'lucide-react'
 
 import { Input } from '@/components/ui/input'
@@ -22,6 +24,12 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -35,6 +43,11 @@ import type { BukuKatalog } from '@/types'
 
 type BookItem = BukuKatalog
 
+interface CategoryOption {
+  id_kategori: number
+  nama_kategori: string
+}
+
 interface CartItem extends BookItem {
   qty: number
 }
@@ -46,6 +59,8 @@ export default function BrowseCatalogPage() {
   const [books, setBooks] = useState<BookItem[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isCheckingOut, setIsCheckingOut] = useState(false)
@@ -60,11 +75,14 @@ export default function BrowseCatalogPage() {
   const [displayLimit, setDisplayLimit] = useState(10)
 
   // Fetch Data dari API
-  const fetchBooks = useCallback(async (q: string) => {
+  const fetchBooks = useCallback(async (q: string, categoryId: number | null) => {
     setLoading(true)
     try {
-      const params = q.trim() ? `?q=${encodeURIComponent(q)}` : ''
-      const res = await fetch(`/api/member/catalog${params}`)
+      const params = new URLSearchParams()
+      if (q.trim()) params.set('q', q.trim())
+      if (categoryId) params.set('category', String(categoryId))
+      const queryString = params.toString()
+      const res = await fetch(`/api/member/catalog${queryString ? `?${queryString}` : ''}`)
       if (!res.ok) throw new Error('Gagal memuat katalog')
       const json = await res.json()
       setBooks(json.data ?? [])
@@ -76,12 +94,27 @@ export default function BrowseCatalogPage() {
   }, [])
 
   useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch('/api/member/categories')
+        if (!res.ok) throw new Error('Gagal memuat kategori')
+        const json = await res.json()
+        setCategories(json.data ?? [])
+      } catch {
+        toast.error('Gagal memuat kategori buku')
+      }
+    }
+
+    fetchCategories()
+  }, [])
+
+  useEffect(() => {
     const timer = setTimeout(() => {
-      setDisplayLimit(10) // Reset limit saat search
-      fetchBooks(search)
+      setDisplayLimit(10) // Reset limit saat filter berubah
+      fetchBooks(search, selectedCategoryId)
     }, 400)
     return () => clearTimeout(timer)
-  }, [search, fetchBooks])
+  }, [search, selectedCategoryId, fetchBooks])
 
   // Fetch reviews saat modal detail buku terbuka
   useEffect(() => {
@@ -137,6 +170,7 @@ export default function BrowseCatalogPage() {
   const removeFromCart = (id_buku: number) => setCart(prev => prev.filter(i => i.id_buku !== id_buku))
 
   const totalItemsInCart = cart.reduce((sum, item) => sum + item.qty, 0)
+  const selectedCategoryName = categories.find(category => category.id_kategori === selectedCategoryId)?.nama_kategori
 
   const handleCheckout = async () => {
     if (!isLoaded || cart.length === 0) return
@@ -170,7 +204,7 @@ export default function BrowseCatalogPage() {
       toast.success(json.message)
       setCart([])
       setIsCartOpen(false)
-      fetchBooks(search)
+      fetchBooks(search, selectedCategoryId)
     } catch (err: any) {
       toast.error(err.message)
     } finally {
@@ -190,14 +224,51 @@ export default function BrowseCatalogPage() {
           </p>
         </div>
 
-        <div className="relative w-full md:w-80">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Judul, pengarang..."
-            className="pl-10 bg-white border-2"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
+          <div className="relative w-full sm:w-80">
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Judul, pengarang..."
+              className="pl-10 bg-white border-2"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <button
+                  type="button"
+                  className="inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg border-2 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-52"
+                  aria-label="Filter kategori buku"
+                />
+              }
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <TagsIcon className="size-4 shrink-0 text-muted-foreground" />
+                <span className="truncate">{selectedCategoryName ?? 'Semua Kategori'}</span>
+              </span>
+              <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-[60] max-h-72 w-56">
+              <DropdownMenuItem
+                onClick={() => setSelectedCategoryId(null)}
+                className="cursor-pointer"
+              >
+                Semua Kategori
+              </DropdownMenuItem>
+              {categories.map(category => (
+                <DropdownMenuItem
+                  key={category.id_kategori}
+                  onClick={() => setSelectedCategoryId(category.id_kategori)}
+                  className="cursor-pointer"
+                >
+                  {category.nama_kategori}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

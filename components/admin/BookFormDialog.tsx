@@ -17,15 +17,14 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { bukuSchema, type BukuFormData } from '@/lib/validations'
-import type { Kategori } from '@/types'
-import type { Book } from '@/app/(dashboard)/admin/books/page'
+import type { BukuAdmin, Kategori } from '@/types'
 
 // types
 interface BookFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
-  book?: Book | null
+  book?: BukuAdmin | null
   mode: 'create' | 'edit'
 }
 
