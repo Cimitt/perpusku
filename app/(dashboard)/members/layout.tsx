@@ -6,6 +6,7 @@ import { useUser } from '@clerk/nextjs'
 import {
   BookCheckIcon,
   ClockIcon,
+  ReceiptTextIcon,
   HeartIcon,
   HomeIcon,
   LibraryIcon,
@@ -49,24 +50,25 @@ interface NavItem {
 
 // nav config
 const NAV_MAIN: NavItem[] = [
-  { href: '/members',       label: 'Dashboard',      icon: HomeIcon,   exact: true },
-  { href: '/members/books', label: 'Browse Catalog', icon: SearchIcon, exact: true },
+  { href: '/members',       label: 'Dashboard',       icon: HomeIcon,   exact: true },
+  { href: '/members/books', label: 'Katalog Buku', icon: SearchIcon, exact: true },
 ]
 
 const NAV_ACTIVITY: NavItem[] = [
-  { href: '/members/loans',     label: 'My Loans',        icon: BookCheckIcon },
-  { href: '/members/favorites', label: 'My Favorites',    icon: HeartIcon },
-  { href: '/members/history',   label: 'Reading History', icon: ClockIcon },
+  { href: '/members/loans',     label: 'Pinjaman Saya', icon: BookCheckIcon },
+  { href: '/members/overdue',   label: 'Denda Saya',    icon: ReceiptTextIcon },
+  { href: '/members/favorites', label: 'Favorit Saya',  icon: HeartIcon },
+  { href: '/members/history',   label: 'Riwayat Baca',  icon: ClockIcon },
 ]
 
 const NAV_COMMUNITY: NavItem[] = [
-  { href: '/members/feeds',      label: 'Review Feeds', icon: RssIcon,          exact: true },
-  { href: '/members/my-reviews', label: 'My Reviews',   icon: MessageSquareIcon },
+  { href: '/members/feeds',      label: 'Feed Ulasan', icon: RssIcon,          exact: true },
+  { href: '/members/my-reviews', label: 'Ulasan Saya', icon: MessageSquareIcon },
 ]
 
 const NAV_ACCOUNT: NavItem[] = [
-  { href: '/members/profile',   label: 'Profile',  icon: UserCircleIcon },
-  { href: '/members/settings',  label: 'Settings', icon: SettingsIcon },
+  { href: '/members/profile',   label: 'Profil',      icon: UserCircleIcon },
+  { href: '/members/settings',  label: 'Pengaturan',  icon: SettingsIcon },
 ]
 
 // helper
@@ -128,7 +130,7 @@ export default function MembersLayout({ children }: { children: ReactNode }) {
                 </div>
                 <div className='flex flex-col overflow-hidden'>
                   <span className='truncate text-lg font-semibold'>PerpuSmuhda</span>
-                  <span className='text-xs text-muted-foreground'>Student Portal</span>
+                  <span className='text-xs text-muted-foreground'>Portal Anggota</span>
                 </div>
               </div>
             </SidebarGroup>
@@ -142,19 +144,19 @@ export default function MembersLayout({ children }: { children: ReactNode }) {
 
             {/* ── My Activity ── */}
             <SidebarGroup>
-              <SidebarGroupLabel>My Activity</SidebarGroupLabel>
+              <SidebarGroupLabel>Aktivitas Saya</SidebarGroupLabel>
               <NavSection items={NAV_ACTIVITY} pathname={pathname} />
             </SidebarGroup>
 
             {/* ── Community ── */}
             <SidebarGroup>
-              <SidebarGroupLabel>Community</SidebarGroupLabel>
+              <SidebarGroupLabel>Komunitas</SidebarGroupLabel>
               <NavSection items={NAV_COMMUNITY} pathname={pathname} />
             </SidebarGroup>
 
             {/* ── Account ── */}
             <SidebarGroup className='mt-auto'>
-              <SidebarGroupLabel>Account</SidebarGroupLabel>
+              <SidebarGroupLabel>Akun</SidebarGroupLabel>
               <NavSection items={NAV_ACCOUNT} pathname={pathname} />
             </SidebarGroup>
           </SidebarContent>

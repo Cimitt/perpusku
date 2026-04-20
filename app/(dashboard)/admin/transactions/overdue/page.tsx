@@ -26,6 +26,7 @@ import { id as localeId } from 'date-fns/locale'
 // Interface disesuaikan dengan kolom v_monitoring_denda
 interface MonitoringDendaRow {
   id_transaksi: number;
+  qr_token?: string | null;
   nama_anggota: string;
   nis: string;
   email: string | null;
@@ -38,13 +39,26 @@ interface MonitoringDendaRow {
   denda_dibayar?: boolean;
 }
 
+interface OverdueGroup {
+  key: string;
+  qr_token: string | null;
+  items: MonitoringDendaRow[];
+  nama_anggota: string;
+  nis: string;
+  email: string | null;
+  kelas: string | null;
+  totalFine: number;
+  maxDelay: number;
+  nearestDueDate: string;
+}
+
 export default function OverduePage() {
   const [overdues, setOverdues] = useState<MonitoringDendaRow[]>([])
   const [loading, setLoading] = useState(true)
   const [isMounted, setIsMounted] = useState(false) // Fix Hydration
-  const [sendingEmail, setSendingEmail] = useState<number | null>(null)
-  const [sendingWhatsApp, setSendingWhatsApp] = useState<number | null>(null)
-  const [selectedItem, setSelectedItem] = useState<MonitoringDendaRow | null>(null)
+  const [sendingEmail, setSendingEmail] = useState<string | null>(null)
+  const [sendingWhatsApp, setSendingWhatsApp] = useState<string | null>(null)
+  const [selectedGroup, setSelectedGroup] = useState<OverdueGroup | null>(null)
   const [payingFine, setPayingFine] = useState<number | null>(null)
   const [confirmPayItem, setConfirmPayItem] = useState<MonitoringDendaRow | null>(null)
 
@@ -83,15 +97,19 @@ export default function OverduePage() {
       // 2. Ambil ID transaksi yang dendanya sudah dibayar
       if (allOverdues.length > 0) {
         const ids = allOverdues.map(d => d.id_transaksi)
-        const { data: paidRows } = await supabase
+        const { data: trxRows } = await supabase
           .from('transaksi')
-          .select('id_transaksi')
+          .select('id_transaksi, qr_token, denda_dibayar')
           .in('id_transaksi', ids)
-          .eq('denda_dibayar', true)
 
         // 3. Filter: hanya tampilkan yang belum dibayar
-        const paidIds = new Set((paidRows || []).map(r => r.id_transaksi))
-        setOverdues(allOverdues.filter(d => !paidIds.has(d.id_transaksi)))
+        const paidIds = new Set((trxRows || []).filter(r => r.denda_dibayar).map(r => r.id_transaksi))
+        const qrTokens = new Map((trxRows || []).map(r => [r.id_transaksi, r.qr_token]))
+        setOverdues(
+          allOverdues
+            .filter(d => !paidIds.has(d.id_transaksi))
+            .map(d => ({ ...d, qr_token: qrTokens.get(d.id_transaksi) ?? null }))
+        )
       } else {
         setOverdues([])
       }
@@ -106,82 +124,100 @@ export default function OverduePage() {
     fetchOverdues()
   }, [fetchOverdues])
 
-  const handleSendBill = async (item: MonitoringDendaRow) => {
-  if (!item.email) {
-    toast.error(`Email tidak ditemukan!`);
-    return;
-  }
-
-  try {
-    setSendingEmail(item.id_transaksi);
-
-    const response = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: item.email,
-        nama: item.nama_anggota,
-        nis: item.nis,
-        buku: item.judul_buku,
-        denda: item.denda_realtime,
-        hari: item.hari_keterlambatan
-      }),
-    });
-
-    const result = await response.json();
-
-    if (result.success) {
-      toast.success(`Berhasil mengirim tagihan ke Gmail ${item.nama_anggota}`);
-    } else {
-      throw new Error(result.error);
+  const handleSendGroupBill = async (group: OverdueGroup) => {
+    if (!group.email) {
+      toast.error(`Email tidak ditemukan!`);
+      return;
     }
-  } catch (err: any) {
-    toast.error(`Gagal: ${err.message}`);
-  } finally {
-    setSendingEmail(null);
-  }
-};
 
-  const buildWhatsAppMessage = (item: MonitoringDendaRow) => {
+    try {
+      setSendingEmail(group.key);
+
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: group.email,
+          nama: group.nama_anggota,
+          nis: group.nis,
+          kelas: group.kelas,
+          qr_token: group.qr_token,
+          buku: `${group.items.length} buku terlambat`,
+          denda: group.totalFine,
+          hari: group.maxDelay,
+          books: group.items.map((item) => ({
+            judul_buku: item.judul_buku,
+            tgl_kembali_rencana: item.tgl_kembali_rencana,
+            hari_keterlambatan: item.hari_keterlambatan,
+            denda_realtime: item.denda_realtime,
+          })),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(`Berhasil mengirim tagihan QR ke Gmail ${group.nama_anggota}`);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (err: any) {
+      toast.error(`Gagal: ${err.message}`);
+    } finally {
+      setSendingEmail(null);
+    }
+  }
+
+  const buildWhatsAppMessage = (group: OverdueGroup) => {
+    const bookLines = group.items.flatMap((item, index) => [
+      `${index + 1}. ${item.judul_buku}`,
+      `   Batas kembali: ${format(new Date(item.tgl_kembali_rencana), 'dd MMMM yyyy', { locale: localeId })}`,
+      `   Keterlambatan: ${item.hari_keterlambatan} hari`,
+      `   Denda: Rp ${item.denda_realtime.toLocaleString('id-ID')}`,
+    ])
+
     return [
-      `Halo ${item.nama_anggota},`,
+      `Halo ${group.nama_anggota},`,
       '',
-      'Kami dari Perpustakaan SMK 2 ingin menginformasikan bahwa peminjaman buku berikut sudah melewati batas waktu pengembalian:',
+      'Kami dari Perpustakaan SMK 2 ingin menginformasikan bahwa peminjaman dalam satu QR berikut sudah melewati batas waktu pengembalian:',
       '',
-      `Buku: ${item.judul_buku}`,
-      `NIS: ${item.nis}`,
-      `Kelas: ${item.kelas || '-'}`,
-      `Batas kembali: ${format(new Date(item.tgl_kembali_rencana), 'dd MMMM yyyy', { locale: localeId })}`,
-      `Keterlambatan: ${item.hari_keterlambatan} hari`,
-      `Total denda: Rp ${item.denda_realtime.toLocaleString('id-ID')}`,
+      `NIS: ${group.nis}`,
+      `Kelas: ${group.kelas || '-'}`,
+      `QR: ${group.qr_token || group.key}`,
       '',
-      'Mohon segera mengembalikan buku dan menyelesaikan administrasi denda di meja petugas perpustakaan.',
+      ...bookLines,
+      '',
+      `Total buku: ${group.items.length}`,
+      `Keterlambatan terlama: ${group.maxDelay} hari`,
+      `Total denda: Rp ${group.totalFine.toLocaleString('id-ID')}`,
+      '',
+      'Mohon segera mengembalikan semua buku tersebut dan menyelesaikan administrasi denda di meja petugas perpustakaan.',
       'Abaikan pesan ini jika pembayaran sudah diselesaikan.'
     ].join('\n')
   }
 
-  const handleSendWhatsAppBill = async (item: MonitoringDendaRow) => {
+  const handleSendWhatsAppGroupBill = async (group: OverdueGroup) => {
     const whatsappWindow = window.open('', '_blank')
     try {
       if (!whatsappWindow) {
         throw new Error('Popup WhatsApp diblokir browser. Izinkan popup untuk halaman ini.')
       }
 
-      setSendingWhatsApp(item.id_transaksi)
+      setSendingWhatsApp(group.key)
       const response = await fetch('/api/admin/transactions/overdue/whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_transaksi: item.id_transaksi }),
+        body: JSON.stringify({ id_transaksi: group.items[0].id_transaksi }),
       })
       const result = await response.json()
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Gagal menyiapkan WhatsApp')
       }
 
-      const message = encodeURIComponent(buildWhatsAppMessage(item))
+      const message = encodeURIComponent(buildWhatsAppMessage(group))
       whatsappWindow.opener = null
       whatsappWindow.location.href = `https://web.whatsapp.com/send?phone=${result.phone}&text=${message}`
-      toast.success(`Tagihan WhatsApp untuk ${item.nama_anggota} siap dikirim.`)
+      toast.success(`Tagihan WhatsApp QR untuk ${group.nama_anggota} siap dikirim.`)
     } catch (err: any) {
       whatsappWindow?.close()
       toast.error(err.message || 'Gagal menyiapkan tagihan WhatsApp')
@@ -203,7 +239,7 @@ export default function OverduePage() {
 
       toast.success(`Denda ${item.nama_anggota} untuk "${item.judul_buku}" telah dilunasi.`)
       setConfirmPayItem(null)
-      setSelectedItem(null)
+      setSelectedGroup(null)
       fetchOverdues() // Refresh data
     } catch (err: any) {
       toast.error(err.message || 'Gagal memproses pembayaran denda')
@@ -218,6 +254,38 @@ export default function OverduePage() {
       ? Math.round(overdues.reduce((sum, t) => sum + t.hari_keterlambatan, 0) / overdues.length)
       : 0
     return { totalFine, avgDays }
+  }, [overdues])
+
+  const groupedOverdues = useMemo(() => {
+    const groups = overdues.reduce<Record<string, OverdueGroup>>((acc, item) => {
+      const key = item.qr_token || `transaksi-${item.id_transaksi}`
+      if (!acc[key]) {
+        acc[key] = {
+          key,
+          qr_token: item.qr_token || null,
+          items: [],
+          nama_anggota: item.nama_anggota,
+          nis: item.nis,
+          email: item.email,
+          kelas: item.kelas,
+          totalFine: 0,
+          maxDelay: 0,
+          nearestDueDate: item.tgl_kembali_rencana,
+        }
+      }
+
+      acc[key].items.push(item)
+      acc[key].totalFine += item.denda_realtime || 0
+      acc[key].maxDelay = Math.max(acc[key].maxDelay, item.hari_keterlambatan || 0)
+
+      if (new Date(item.tgl_kembali_rencana) < new Date(acc[key].nearestDueDate)) {
+        acc[key].nearestDueDate = item.tgl_kembali_rencana
+      }
+
+      return acc
+    }, {})
+
+    return Object.values(groups).sort((a, b) => b.maxDelay - a.maxDelay)
   }, [overdues])
 
   // Tampilkan skeleton saat server-side rendering untuk menghindari mismatch
@@ -236,7 +304,7 @@ export default function OverduePage() {
             {loading ? <Loader2Icon className='mr-2 size-4 animate-spin' /> : <RefreshCwIcon className='mr-2 size-4' />}
             Sync Data
           </Button>
-          <Button size='sm' variant='destructive' disabled={overdues.length === 0} onClick={() => toast.info('Fitur broadcast sedang disiapkan')}>
+          <Button size='sm' variant='destructive' disabled={groupedOverdues.length === 0} onClick={() => toast.info('Fitur broadcast sedang disiapkan')}>
             <BellIcon className='mr-2 size-4' /> Broadcast Reminder
           </Button>
         </div>
@@ -244,7 +312,7 @@ export default function OverduePage() {
 
       {/* Stats */}
       <div className='grid gap-4 md:grid-cols-3'>
-        <StatCard title="Total Terlambat" value={overdues.length} unit="Transaksi" icon={<AlertCircleIcon className='text-red-600'/>} color="bg-red-50" />
+        <StatCard title="Total Paket QR" value={groupedOverdues.length} unit="Paket" icon={<AlertCircleIcon className='text-red-600'/>} color="bg-red-50" />
         <StatCard title="Estimasi Denda" value={`Rp ${stats.totalFine.toLocaleString('id-ID')}`} icon={<DollarSignIcon className='text-amber-600'/>} color="bg-amber-50" />
         <StatCard title="Rata-rata Delay" value={stats.avgDays} unit="Hari" icon={<ClockIcon className='text-blue-600'/>} color="bg-blue-50" />
       </div>
@@ -252,73 +320,50 @@ export default function OverduePage() {
       {/* List Section */}
       <Card className='border-none shadow-sm'>
         <CardHeader className='border-b bg-slate-50/50'>
-          <CardTitle className='text-lg'>Detail Keterlambatan</CardTitle>
+          <CardTitle className='text-lg'>Detail Keterlambatan per QR</CardTitle>
         </CardHeader>
         <CardContent className='p-6'>
           {loading ? (
             <div className='space-y-4'>
               {[1, 2, 3].map((i) => <Skeleton key={i} className='h-24 w-full rounded-xl' />)}
             </div>
-          ) : overdues.length === 0 ? (
+          ) : groupedOverdues.length === 0 ? (
             <div className='text-center py-12 text-slate-500'>Semua peminjaman tepat waktu!</div>
           ) : (
             <div className='grid gap-4'>
-              {overdues.map((item) => (
-                <div key={item.id_transaksi} className='flex flex-col md:flex-row items-start md:items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-red-200 hover:bg-red-50/30 transition-all gap-4'>
+              {groupedOverdues.map((group) => (
+                <div key={group.key} className='flex flex-col md:flex-row items-start md:items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-red-200 hover:bg-red-50/30 transition-all gap-4'>
                   <div className='flex items-start gap-4'>
                     <div className='size-12 rounded-lg bg-red-100 flex items-center justify-center shrink-0'>
-                      <BookOpenIcon className='size-6 text-red-600' />
+                      <UserIcon className='size-6 text-red-600' />
                     </div>
                     <div className='space-y-1'>
-                      <h4 className='font-bold text-slate-900'>{item.judul_buku}</h4>
+                      <h4 className='font-bold text-slate-900'>{group.nama_anggota}</h4>
                       <div className='flex flex-wrap gap-y-1 gap-x-4 text-sm text-slate-500'>
-                        <span className='flex items-center gap-1'><UserIcon className='size-3' /> {item.nama_anggota}</span>
+                        <span className='flex items-center gap-1'><UserIcon className='size-3' /> {group.nis} / {group.kelas || '-'}</span>
+                        <span className='flex items-center gap-1'><BookOpenIcon className='size-3' /> {group.items.length} buku terlambat</span>
                         <span className='flex items-center gap-1 text-red-600 font-medium font-mono'>
                           <ClockIcon className='size-3' />
-                          {format(new Date(item.tgl_kembali_rencana), 'dd MMM yyyy', { locale: localeId })}
+                          {format(new Date(group.nearestDueDate), 'dd MMM yyyy', { locale: localeId })}
                         </span>
                       </div>
                       <div className='flex gap-2 mt-2'>
                         <Badge variant='outline' className='bg-white border-red-200 text-red-700 font-bold'>
-                          Telat {item.hari_keterlambatan} Hari
+                          Telat max {group.maxDelay} Hari
                         </Badge>
                         <Badge variant='secondary' className='bg-amber-100 text-amber-800 border-none font-bold'>
-                          Rp {item.denda_realtime.toLocaleString('id-ID')}
+                          Rp {group.totalFine.toLocaleString('id-ID')}
                         </Badge>
+                        {group.qr_token && (
+                          <Badge variant='outline' className='bg-white border-slate-200 text-slate-600 font-mono'>
+                            QR {group.qr_token.slice(0, 10)}...
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>
                   <div className='flex gap-2 w-full md:w-auto'>
-                    <Button size='sm' variant='outline' className='flex-1 md:flex-none' onClick={() => setSelectedItem(item)}>Detail</Button>
-                    <Button
-                      size='sm'
-                      variant='outline'
-                      className='flex-1 md:flex-none border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800'
-                      onClick={() => handleSendWhatsAppBill(item)}
-                      disabled={sendingWhatsApp === item.id_transaksi}
-                    >
-                      {sendingWhatsApp === item.id_transaksi ? <Loader2Icon className="size-3 animate-spin mr-2" /> : <MessageCircleIcon className='size-3 mr-2' />}
-                      WA
-                    </Button>
-                    <Button 
-                      size='sm' 
-                      className='bg-red-600 hover:bg-red-700 flex-1 md:flex-none' 
-                      onClick={() => handleSendBill(item)}
-                      disabled={sendingEmail === item.id_transaksi}
-                    >
-                      {sendingEmail === item.id_transaksi ? <Loader2Icon className="size-3 animate-spin mr-2" /> : <MailIcon className='size-3 mr-2' />}
-                      Tagih
-                    </Button>
-                    <Button 
-                      size='sm' 
-                      variant='outline'
-                      className='flex-1 md:flex-none border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800' 
-                      onClick={() => setConfirmPayItem(item)}
-                      disabled={payingFine === item.id_transaksi}
-                    >
-                      {payingFine === item.id_transaksi ? <Loader2Icon className="size-3 animate-spin mr-2" /> : <CheckCircle2Icon className='size-3 mr-2' />}
-                      Bayar
-                    </Button>
+                    <Button size='sm' variant='outline' className='flex-1 md:flex-none' onClick={() => setSelectedGroup(group)}>Detail</Button>
                   </div>
                 </div>
               ))}
@@ -328,79 +373,86 @@ export default function OverduePage() {
       </Card>
 
       {/* Modal Detail */}
-      <Dialog open={!!selectedItem} onOpenChange={() => setSelectedItem(null)}>
-        <DialogContent className="sm:max-w-[500px]">
+      <Dialog open={!!selectedGroup} onOpenChange={() => setSelectedGroup(null)}>
+        <DialogContent className="sm:max-w-[720px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600 font-bold">
-              <InfoIcon className="size-5" /> Detail Keterlambatan
+              <InfoIcon className="size-5" /> Detail Keterlambatan QR
             </DialogTitle>
           </DialogHeader>
 
-          {selectedItem && (
+          {selectedGroup && (
             <div className="space-y-6 py-4">
               <div className="space-y-3">
                 <h5 className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Data Anggota</h5>
                 <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm">
-                  <div><p className="text-muted-foreground text-[10px]">Nama</p><p className="font-bold">{selectedItem.nama_anggota}</p></div>
-                  <div><p className="text-muted-foreground text-[10px]">NIS</p><p className="font-bold">{selectedItem.nis}</p></div>
-                  <div><p className="text-muted-foreground text-[10px]">Kelas</p><p className="font-bold">{selectedItem.kelas || '-'}</p></div>
-                  <div><p className="text-muted-foreground text-[10px]">Email</p><p className="font-bold text-blue-600 truncate">{selectedItem.email || 'N/A'}</p></div>
+                  <div><p className="text-muted-foreground text-[10px]">Nama</p><p className="font-bold">{selectedGroup.nama_anggota}</p></div>
+                  <div><p className="text-muted-foreground text-[10px]">NIS</p><p className="font-bold">{selectedGroup.nis}</p></div>
+                  <div><p className="text-muted-foreground text-[10px]">Kelas</p><p className="font-bold">{selectedGroup.kelas || '-'}</p></div>
+                  <div><p className="text-muted-foreground text-[10px]">Email</p><p className="font-bold text-blue-600 truncate">{selectedGroup.email || 'N/A'}</p></div>
+                  <div className='col-span-2'><p className="text-muted-foreground text-[10px]">QR Paket</p><p className="font-bold font-mono break-all">{selectedGroup.qr_token || '-'}</p></div>
                 </div>
               </div>
 
               <div className="space-y-3">
-                <h5 className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Informasi Pinjaman</h5>
-                <div className="space-y-3 border p-4 rounded-xl">
-                   <div className="flex items-center gap-3">
-                      <BookOpenIcon className="size-4 text-red-600" />
-                      <div><p className="text-[10px] text-muted-foreground">Buku</p><p className="text-sm font-bold">{selectedItem.judul_buku}</p></div>
-                   </div>
-                   <div className="grid grid-cols-2 gap-4 pt-2 border-t border-dashed">
-                      <div><p className="text-[10px] text-muted-foreground">Tgl Pinjam</p><p className="text-xs font-medium">{format(new Date(selectedItem.tgl_pinjam), 'dd/MM/yyyy')}</p></div>
-                      <div><p className="text-[10px] text-muted-foreground">Batas Kembali</p><p className="text-xs font-bold text-red-600">{format(new Date(selectedItem.tgl_kembali_rencana), 'dd/MM/yyyy')}</p></div>
-                   </div>
+                <h5 className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Buku Terlambat dan Denda</h5>
+                <div className="max-h-[320px] space-y-3 overflow-y-auto pr-1">
+                  {selectedGroup.items.map((item) => (
+                    <div key={item.id_transaksi} className="space-y-3 border p-4 rounded-xl">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <BookOpenIcon className="size-4 text-red-600 mt-0.5 shrink-0" />
+                          <div className='min-w-0'>
+                            <p className="text-[10px] text-muted-foreground">Buku</p>
+                            <p className="text-sm font-bold leading-tight">{item.judul_buku}</p>
+                          </div>
+                        </div>
+                        <Badge variant='secondary' className='bg-amber-100 text-amber-800 border-none font-bold shrink-0'>
+                          Rp {item.denda_realtime.toLocaleString('id-ID')}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-dashed">
+                        <div><p className="text-[10px] text-muted-foreground">Tgl Pinjam</p><p className="text-xs font-medium">{format(new Date(item.tgl_pinjam), 'dd/MM/yyyy')}</p></div>
+                        <div><p className="text-[10px] text-muted-foreground">Batas Kembali</p><p className="text-xs font-bold text-red-600">{format(new Date(item.tgl_kembali_rencana), 'dd/MM/yyyy')}</p></div>
+                        <div><p className="text-[10px] text-muted-foreground">Keterlambatan</p><p className="text-xs font-bold text-red-600">{item.hari_keterlambatan} hari</p></div>
+                        <div className='flex items-end justify-end'>
+                          <Button size='sm' variant='outline' className='border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800' onClick={() => setConfirmPayItem(item)} disabled={payingFine === item.id_transaksi}>
+                            {payingFine === item.id_transaksi ? <Loader2Icon className="size-3 animate-spin mr-2" /> : <CheckCircle2Icon className='size-3 mr-2' />}
+                            Bayar
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               <div className="bg-red-600 text-white p-5 rounded-xl flex justify-between items-center shadow-lg shadow-red-100">
                 <div>
                   <p className="text-[10px] uppercase font-bold opacity-80">Total Tagihan</p>
-                  <p className="text-2xl font-black italic">Rp {selectedItem.denda_realtime.toLocaleString('id-ID')}</p>
+                  <p className="text-2xl font-black italic">Rp {selectedGroup.totalFine.toLocaleString('id-ID')}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] uppercase font-bold opacity-80">Durasi</p>
-                  <p className="text-lg font-bold">{selectedItem.hari_keterlambatan} Hari</p>
+                  <p className="text-[10px] uppercase font-bold opacity-80">Buku</p>
+                  <p className="text-lg font-bold">{selectedGroup.items.length} Item</p>
                 </div>
+              </div>
+
+              <div className='grid gap-2 sm:grid-cols-2'>
+                <Button variant='outline' onClick={() => handleSendWhatsAppGroupBill(selectedGroup)} disabled={sendingWhatsApp === selectedGroup.key}>
+                  {sendingWhatsApp === selectedGroup.key ? <Loader2Icon className="size-4 animate-spin mr-2" /> : <MessageCircleIcon className='size-4 mr-2' />}
+                  Kirim 1 Tagihan WhatsApp
+                </Button>
+                <Button className='bg-red-600 hover:bg-red-700' onClick={() => handleSendGroupBill(selectedGroup)} disabled={sendingEmail === selectedGroup.key}>
+                  {sendingEmail === selectedGroup.key ? <Loader2Icon className="size-4 animate-spin mr-2" /> : <MailIcon className='size-4 mr-2' />}
+                  Kirim 1 Tagihan Email
+                </Button>
               </div>
             </div>
           )}
 
           <DialogFooter className='flex-col sm:flex-row gap-2'>
-            <Button variant="ghost" onClick={() => setSelectedItem(null)}>Tutup</Button>
-            <Button 
-              variant='outline'
-              className='border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800' 
-              onClick={() => { if(selectedItem) setConfirmPayItem(selectedItem) }}
-            >
-              <CheckCircle2Icon className='size-4 mr-2' />
-              Lunaskan Denda
-            </Button>
-            <Button className="bg-red-600 hover:bg-red-700" onClick={() => { if(selectedItem) handleSendBill(selectedItem); setSelectedItem(null); }}>
-              <MailIcon className='size-4 mr-2' />
-              Kirim Nota Gmail
-            </Button>
-            <Button
-              className="bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => { if(selectedItem) handleSendWhatsAppBill(selectedItem); setSelectedItem(null); }}
-              disabled={selectedItem ? sendingWhatsApp === selectedItem.id_transaksi : false}
-            >
-              {selectedItem && sendingWhatsApp === selectedItem.id_transaksi ? (
-                <Loader2Icon className='size-4 mr-2 animate-spin' />
-              ) : (
-                <MessageCircleIcon className='size-4 mr-2' />
-              )}
-              Kirim WhatsApp
-            </Button>
+            <Button variant="ghost" onClick={() => setSelectedGroup(null)}>Tutup</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

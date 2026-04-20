@@ -54,7 +54,7 @@ function buildBorrowBlockPayload(
     total_denda: totalDenda,
     jumlah_denda_belum_lunas: unpaidFines.length,
     jumlah_keterlambatan: overdueLoans.length,
-    redirect_to: '/members/loans',
+    redirect_to: '/members/overdue',
   }
 }
 
