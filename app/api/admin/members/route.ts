@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { auth, clerkClient } from '@clerk/nextjs/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sanitizePostgrestValue } from '@/lib/security'
 import type { Database } from '@/types/supabase'
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
   })
 }
 
-// patch /api/admin/members?id=:id — nonaktifkan member
+// patch /api/admin/members?id=:id — ubah status atau reset password member
 export async function PATCH(req: NextRequest) {
   const userId = await requireAdmin()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -67,18 +67,65 @@ export async function PATCH(req: NextRequest) {
   const id = Number(new URL(req.url).searchParams.get('id'))
   if (!id) return NextResponse.json({ error: 'ID tidak valid' }, { status: 400 })
 
-  const body = await req.json() as { is_active: boolean }
+  const body = await req.json() as {
+    action?: 'set_status' | 'reset_password'
+    is_active?: boolean
+    password?: string
+  }
+
+  const action = body.action ?? 'set_status'
+
+  if (action === 'reset_password') {
+    const password = body.password?.trim() ?? ''
+    if (password.length < 8) {
+      return NextResponse.json({ error: 'Password minimal 8 karakter' }, { status: 400 })
+    }
+
+    const supabase = createAdminClient()
+    const { data: member, error: memberError } = await supabase
+      .from('pengguna')
+      .select('id_pengguna, clerk_id')
+      .eq('id_pengguna', id)
+      .eq('level', 'Anggota')
+      .single() as unknown as {
+        data: Pick<PenggunaRow, 'id_pengguna' | 'clerk_id'> | null
+        error: Error | null
+      }
+
+    if (memberError || !member) {
+      return NextResponse.json({ error: 'Member tidak ditemukan' }, { status: 404 })
+    }
+
+    try {
+      const clerk = await clerkClient()
+      await clerk.users.updateUser(member.clerk_id, {
+        password,
+        signOutOfOtherSessions: true,
+      })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Gagal reset password di Clerk'
+      return NextResponse.json({ error: message }, { status: 500 })
+    }
+
+    return NextResponse.json({ data: { id_pengguna: member.id_pengguna } })
+  }
+
+  if (typeof body.is_active !== 'boolean') {
+    return NextResponse.json({ error: 'Status tidak valid' }, { status: 400 })
+  }
 
   const { data, error } = await createAdminClient()
     .from('pengguna')
     .update({ is_active: body.is_active })
     .eq('id_pengguna', id)
+    .eq('level', 'Anggota')
     .select('id_pengguna, is_active')
-    .single() as unknown as {
+    .maybeSingle() as unknown as {
       data: Pick<PenggunaRow, 'id_pengguna' | 'is_active'> | null
       error: Error | null
     }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'Member tidak ditemukan' }, { status: 404 })
   return NextResponse.json({ data })
 }

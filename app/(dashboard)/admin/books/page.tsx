@@ -32,7 +32,7 @@ import { BookFormDialog } from '@/components/admin/BookFormDialog'
 import { DeleteBookDialog } from '@/components/admin/DeleteBookDialog'
 
 // Types
-import type { BukuAdmin } from '@/types'
+import type { BukuAdmin, Kategori } from '@/types'
 
 interface BookStats {
   total: number
@@ -45,8 +45,11 @@ export default function BooksPage() {
   const [books, setBooks] = useState<BukuAdmin[]>([])
   const [stats, setStats] = useState<BookStats>({ total: 0, available: 0, unavailable: 0 })
   const [searchQuery, setSearchQuery] = useState('')
+  const [categories, setCategories] = useState<Kategori[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingStats, setLoadingStats] = useState(true)
+  const [loadingCategories, setLoadingCategories] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // --- Pagination States ---
@@ -78,19 +81,40 @@ export default function BooksPage() {
     }
   }, [])
 
+  // --- Logic: Fetch Categories ---
+  const fetchCategories = useCallback(async () => {
+    setLoadingCategories(true)
+    try {
+      const res = await fetch('/api/admin/categories')
+      if (!res.ok) throw new Error('Gagal mengambil data kategori')
+
+      const json = await res.json()
+      setCategories(json.data || [])
+    } catch (err) {
+      console.error('Gagal mengambil kategori:', err)
+    } finally {
+      setLoadingCategories(false)
+    }
+  }, [])
+
   // --- Logic: Fetch Books Data ---
-  const fetchBooks = useCallback(async (query = '') => {
+  const fetchBooks = useCallback(async (query = '', categoryId: number | null = null) => {
     setLoading(true)
     setError(null)
     try {
-      const params = query.trim() ? `?q=${encodeURIComponent(query)}` : ''
-      const res = await fetch(`/api/admin/books${params}`)
+      const params = new URLSearchParams()
+      if (query.trim()) params.set('q', query.trim())
+      if (categoryId) params.set('category', String(categoryId))
+
+      const queryString = params.toString()
+      const res = await fetch(`/api/admin/books${queryString ? `?${queryString}` : ''}`)
       if (!res.ok) throw new Error('Gagal mengambil data buku')
       
       const json = await res.json()
       const formatted: BukuAdmin[] = (json.data || []).map((b: any) => ({
         ...b,
-        nama_kategori: b.kategori?.nama_kategori || 'tanpa kategori',
+        kategori: Array.isArray(b.kategori) ? b.kategori[0] ?? null : b.kategori,
+        nama_kategori: (Array.isArray(b.kategori) ? b.kategori[0]?.nama_kategori : b.kategori?.nama_kategori) || 'tanpa kategori',
       }))
       
       setBooks(formatted)
@@ -104,17 +128,18 @@ export default function BooksPage() {
   // --- Effects ---
   useEffect(() => {
     fetchStats()
-  }, [fetchStats])
+    fetchCategories()
+  }, [fetchStats, fetchCategories])
 
   useEffect(() => {
-    const timer = setTimeout(() => fetchBooks(searchQuery), 400)
+    const timer = setTimeout(() => fetchBooks(searchQuery, selectedCategoryId), 400)
     return () => clearTimeout(timer)
-  }, [searchQuery, fetchBooks])
+  }, [searchQuery, selectedCategoryId, fetchBooks])
 
-  // Reset ke halaman 1 saat search berubah
+  // Reset ke halaman 1 saat filter berubah
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery])
+  }, [searchQuery, selectedCategoryId])
 
   // --- Kalkulasi Pagination ---
   const totalPages = Math.ceil(books.length / pageSize)
@@ -145,9 +170,10 @@ export default function BooksPage() {
 
   // --- Handlers ---
   const handleSuccess = useCallback(() => {
-    fetchBooks(searchQuery)
+    fetchBooks(searchQuery, selectedCategoryId)
     fetchStats()
-  }, [searchQuery, fetchBooks, fetchStats])
+    fetchCategories()
+  }, [searchQuery, selectedCategoryId, fetchBooks, fetchStats, fetchCategories])
 
   const handleDelete = async () => {
     if (!selectedBook) return
@@ -208,20 +234,21 @@ export default function BooksPage() {
       <Card className='border-none shadow-sm shadow-slate-200/50 overflow-hidden'>
         {/* Filters Component */}
         <BookFilters 
-        searchQuery={searchQuery} 
-        setSearchQuery={setSearchQuery} 
-        onAddClick={() => {
-          setSelectedBook(null)
-          setIsAddModalOpen(true)
-        }}
-      />
+          searchQuery={searchQuery} 
+          setSearchQuery={setSearchQuery} 
+          categories={categories}
+          selectedCategoryId={selectedCategoryId}
+          setSelectedCategoryId={setSelectedCategoryId}
+          loadingCategories={loadingCategories}
+        />
 
         {/* Table Component */}
         <CardContent className='p-0 bg-white overflow-x-auto'>
           <BookTable 
             books={paginatedBooks} 
             loading={loading} 
-            searchQuery={searchQuery} 
+            searchQuery={searchQuery}
+            hasActiveFilter={selectedCategoryId !== null}
             onEdit={(book) => {
               setSelectedBook(book)
               setIsEditModalOpen(true)

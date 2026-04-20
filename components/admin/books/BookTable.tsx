@@ -8,11 +8,19 @@ interface Props {
   books: BukuAdmin[]
   loading: boolean
   searchQuery: string
+  hasActiveFilter?: boolean
   onEdit: (book: BukuAdmin) => void
   onDelete: (book: BukuAdmin) => void
 }
 
-export function BookTable({ books, loading, searchQuery, onEdit, onDelete }: Props) {
+export function BookTable({
+  books,
+  loading,
+  searchQuery,
+  hasActiveFilter = false,
+  onEdit,
+  onDelete,
+}: Props) {
   return (
     <Table className='min-w-[800px]'>
       <TableHeader className='bg-slate-50/50'>
@@ -37,7 +45,9 @@ export function BookTable({ books, loading, searchQuery, onEdit, onDelete }: Pro
             <TableCell colSpan={6} className='text-center py-12 text-muted-foreground'>
               <div className='flex flex-col items-center gap-2'>
                 <BookOpenIcon className='size-8 text-slate-300' />
-                <p className='font-medium'>{searchQuery ? 'Tidak ada buku ditemukan' : 'Belum ada data buku'}</p>
+                <p className='font-medium'>
+                  {searchQuery || hasActiveFilter ? 'Tidak ada buku ditemukan' : 'Belum ada data buku'}
+                </p>
               </div>
             </TableCell>
           </TableRow>

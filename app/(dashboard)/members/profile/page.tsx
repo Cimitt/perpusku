@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useUser } from '@clerk/nextjs'
 import {
   UserCircleIcon,
@@ -26,18 +26,36 @@ function getInitials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
+const ALLOWED_AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_AVATAR_SIZE = 5 * 1024 * 1024
+
 export default function ProfilePage() {
   const { user, isLoaded }      = useUser()
   const [profile, setProfile]   = useState<ProfileData | null>(null)
   const [loading, setLoading]   = useState(true)
   const [editing, setEditing]   = useState(false)
   const [saving, setSaving]     = useState(false)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement | null>(null)
 
   const [form, setForm] = useState({
     nama_anggota: '',
     nis: '',
     kelas: '',
+    nomor_hp: '',
+    avatar_url: '',
   })
+
+  const fillForm = (d: ProfileData) => {
+    setForm({
+      nama_anggota: d.anggota?.nama_anggota ?? d.nama_pengguna ?? '',
+      nis:          d.anggota?.nis ?? '',
+      kelas:        d.anggota?.kelas ?? '',
+      nomor_hp:     d.anggota?.nomor_hp ?? '',
+      avatar_url:   d.anggota?.avatar_url ?? d.anggota?.foto ?? user?.imageUrl ?? '',
+    })
+  }
 
   useEffect(() => {
     if (!isLoaded || !user) return
@@ -45,15 +63,59 @@ export default function ProfilePage() {
       .then(r => r.json())
       .then(d => {
         setProfile(d)
-        setForm({
-          nama_anggota: d.anggota?.nama_anggota ?? d.nama_pengguna ?? '',
-          nis:          d.anggota?.nis ?? '',
-          kelas:        d.anggota?.kelas ?? '',
-        })
+        fillForm(d)
       })
       .catch(() => toast.error('Gagal memuat profil'))
       .finally(() => setLoading(false))
   }, [isLoaded, user])
+
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreview(null)
+      return
+    }
+
+    const previewUrl = URL.createObjectURL(avatarFile)
+    setAvatarPreview(previewUrl)
+    return () => URL.revokeObjectURL(previewUrl)
+  }, [avatarFile])
+
+  const resetEditing = () => {
+    if (profile) fillForm(profile)
+    setAvatarFile(null)
+    setEditing(false)
+  }
+
+  const handleAvatarChange = (file: File | null) => {
+    if (!file) return
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      setAvatarFile(null)
+      toast.error('Avatar harus berupa JPG, PNG, atau WebP')
+      return
+    }
+    if (file.size > MAX_AVATAR_SIZE) {
+      setAvatarFile(null)
+      toast.error('Ukuran avatar maksimal 5 MB')
+      return
+    }
+    setAvatarFile(file)
+    setEditing(true)
+  }
+
+  const uploadAvatar = async () => {
+    if (!avatarFile) return form.avatar_url || null
+
+    const formData = new FormData()
+    formData.append('file', avatarFile)
+
+    const res = await fetch('/api/member/avatar', {
+      method: 'POST',
+      body: formData,
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error ?? 'Gagal mengunggah avatar')
+    return json.url as string
+  }
 
   const handleSave = async () => {
     if (!form.nama_anggota.trim()) {
@@ -62,6 +124,7 @@ export default function ProfilePage() {
     }
     setSaving(true)
     try {
+      const avatarUrl = await uploadAvatar()
       const res = await fetch('/api/member/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -69,15 +132,20 @@ export default function ProfilePage() {
           nama_anggota: form.nama_anggota,
           nis:          form.nis || null,
           kelas:        form.kelas || null,
+          nomor_hp:     form.nomor_hp || null,
+          avatar_url:   avatarUrl,
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
       toast.success('Profil berhasil diperbarui!')
       setEditing(false)
+      setAvatarFile(null)
       
       const refreshed = await fetch('/api/member/profile').then(r => r.json())
       setProfile(refreshed)
+      fillForm(refreshed)
+      window.dispatchEvent(new Event('profile:updated'))
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Gagal menyimpan profil')
     } finally {
@@ -86,7 +154,7 @@ export default function ProfilePage() {
   }
 
   const displayName = profile?.anggota?.nama_anggota ?? profile?.nama_pengguna ?? user?.fullName ?? 'Anggota'
-  const avatarUrl   = profile?.anggota?.foto ?? user?.imageUrl
+  const avatarUrl   = avatarPreview ?? profile?.anggota?.avatar_url ?? profile?.anggota?.foto ?? user?.imageUrl
 
   if (!isLoaded || loading) {
     return (
@@ -114,7 +182,7 @@ export default function ProfilePage() {
       {/* Hero Avatar Card */}
       <Card className='overflow-hidden border-2 border-muted bg-card shadow-sm'>
         {/* Banner - Soft Pink Gradient */}
-        <div className='h-32 bg-gradient-to-br from-primary/80 via-primary/40 to-secondary/30 relative'>
+        <div className='h-32 bg-linear-to-br from-primary/80 via-primary/40 to-secondary/30 relative'>
            <div className="absolute inset-0 bg-white/20 backdrop-blur-sm" />
            <div className="absolute -top-10 -right-10 size-40 rounded-full bg-white/20 blur-2xl" />
         </div>
@@ -132,11 +200,24 @@ export default function ProfilePage() {
               
               <button
                 className='absolute bottom-0 right-0 rounded-full bg-secondary text-secondary-foreground border-2 border-background p-2 shadow-sm hover:scale-110 hover:bg-secondary/90 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                title='Foto profil dikelola melalui akun Google'
-                onClick={() => toast.info('Foto profil dikelola melalui akun Google di Clerk.')}
+                title='Ubah avatar'
+                onClick={() => {
+                  setEditing(true)
+                  avatarInputRef.current?.click()
+                }}
               >
                 <CameraIcon className='size-4' />
               </button>
+              <input
+                ref={avatarInputRef}
+                type='file'
+                accept='image/png,image/jpeg,image/webp'
+                className='sr-only'
+                onChange={e => {
+                  handleAvatarChange(e.target.files?.[0] ?? null)
+                  e.target.value = ''
+                }}
+              />
             </div>
 
             {/* Badges */}
@@ -175,7 +256,7 @@ export default function ProfilePage() {
             </Button>
           ) : (
             <div className='flex gap-2'>
-              <Button variant='ghost' size='sm' onClick={() => setEditing(false)} className='text-muted-foreground hover:text-foreground hover:bg-muted'>
+              <Button variant='ghost' size='sm' onClick={resetEditing} className='text-muted-foreground hover:text-foreground hover:bg-muted'>
                 <XIcon className='size-4' /> BATAL
               </Button>
               <Button size='sm' onClick={handleSave} disabled={saving} className='gap-2 font-bold'>
@@ -193,6 +274,7 @@ export default function ProfilePage() {
                { key: 'nama_anggota', label: 'Nama Lengkap', placeholder: 'Nama anggota', required: true },
                { key: 'nis',          label: 'Nomor Induk Siswa (NIS)', placeholder: 'Opsional', required: false },
                { key: 'kelas',        label: 'Kelas / Jabatan', placeholder: 'Contoh: XII IPA 1', required: false },
+               { key: 'nomor_hp',     label: 'Nomor HP', placeholder: 'Contoh: 081234567890', required: false },
              ].map(f => (
                <div key={f.key} className={`space-y-2 ${f.key === 'nama_anggota' ? 'sm:col-span-2' : ''}`}>
                  <label className='text-xs font-bold text-muted-foreground uppercase tracking-wider flex justify-between'>
@@ -205,6 +287,7 @@ export default function ProfilePage() {
                      value={form[f.key as keyof typeof form]}
                      onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
                      placeholder={f.placeholder}
+                     type={f.key === 'nomor_hp' ? 'tel' : 'text'}
                      className='h-11 border-2 border-muted bg-white focus-visible:border-primary focus-visible:ring-primary/20 font-medium'
                    />
                  ) : (

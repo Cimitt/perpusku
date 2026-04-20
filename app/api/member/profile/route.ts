@@ -7,6 +7,8 @@ const ProfileSchema = z.object({
   nama_anggota: z.string().min(1).max(50),
   nis:          z.string().max(20).nullable(),
   kelas:        z.string().max(20).nullable(),
+  nomor_hp:     z.string().max(30).regex(/^[0-9+\-\s()]+$/, 'Nomor HP tidak valid').nullable().optional(),
+  avatar_url:   z.string().url('URL avatar tidak valid').max(1000).nullable().optional(),
   email:        z.string().email().nullable().optional(),
 })
 
@@ -17,7 +19,7 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('pengguna')
-    .select('id_pengguna, email, nama_pengguna, level, is_active, anggota(id_anggota, nama_anggota, nis, kelas, foto, email)')
+    .select('id_pengguna, email, nama_pengguna, level, is_active, anggota(id_anggota, nama_anggota, nis, kelas, foto, avatar_url, nomor_hp, email)')
     .eq('clerk_id', userId)
     .single()
 
@@ -52,11 +54,18 @@ export async function PATCH(req: NextRequest) {
 
   if (!id_anggota) return NextResponse.json({ error: 'Anggota tidak ditemukan' }, { status: 404 })
 
-  const { nama_anggota, nis, kelas } = parsed.data
+  const { nama_anggota, nis, kelas, nomor_hp, avatar_url } = parsed.data
 
   const { error } = await supabase
     .from('anggota')
-    .update({ nama_anggota, nis, kelas })
+    .update({
+      nama_anggota,
+      nis,
+      kelas,
+      nomor_hp: nomor_hp ?? null,
+      avatar_url: avatar_url ?? null,
+      foto: avatar_url ?? null,
+    })
     .eq('id_anggota', id_anggota)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

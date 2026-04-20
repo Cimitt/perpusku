@@ -6,10 +6,10 @@ import {
   MoreVerticalIcon,
   XIcon,
   ShieldOffIcon,
+  ShieldCheckIcon,
   FilterIcon,
   ChevronDownIcon,
-  InfoIcon,
-  CheckCircleIcon,
+  KeyRoundIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -81,23 +81,91 @@ function DeactivateModal({
   )
 }
 
-function InfoModal({ onClose }: { onClose: () => void }) {
+function ActivateModal({
+  member, onClose, onConfirm, loading,
+}: {
+  member: MemberRow
+  onClose: () => void
+  onConfirm: (id: number) => void
+  loading: boolean
+}) {
+  return (
+    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm'>
+      <div className='w-full max-w-sm rounded-2xl bg-white shadow-2xl'>
+        <div className='flex items-center justify-between border-b px-6 py-4'>
+          <h2 className='text-base font-semibold text-slate-900'>Aktifkan Member</h2>
+          <button onClick={onClose} disabled={loading} className='rounded-full p-1 text-slate-400 hover:bg-slate-100 transition-colors disabled:opacity-50'>
+            <XIcon className='size-4' />
+          </button>
+        </div>
+        <div className='space-y-4 px-6 py-5'>
+          <div className='flex items-start gap-3 rounded-lg bg-emerald-50 p-3'>
+            <ShieldCheckIcon className='mt-0.5 size-4 text-emerald-600 shrink-0' />
+            <p className='text-sm text-emerald-700'>
+              Akun <span className='font-semibold'>{getDisplayName(member)}</span> akan diaktifkan kembali.
+              Member dapat mengakses layanan perpustakaan lagi.
+            </p>
+          </div>
+          <div className='flex justify-end gap-2'>
+            <Button variant='outline' size='sm' onClick={onClose} disabled={loading}>Batal</Button>
+            <Button size='sm' disabled={loading} onClick={() => onConfirm(member.id_pengguna)} className='bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5'>
+              <ShieldCheckIcon className='size-3.5' />
+              {loading ? 'Memproses...' : 'Aktifkan'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ResetPasswordModal({
+  member, onClose, onConfirm, loading,
+}: {
+  member: MemberRow
+  onClose: () => void
+  onConfirm: (id: number, password: string) => void
+  loading: boolean
+}) {
+  const [password, setPassword] = useState('')
+  const isValid = password.trim().length >= 8
+
   return (
     <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm'>
       <div className='w-full max-w-sm rounded-2xl bg-white shadow-2xl'>
         <div className='flex items-center justify-between border-b px-6 py-4'>
           <h2 className='text-base font-semibold text-slate-900'>Reset Password</h2>
-          <button onClick={onClose} className='rounded-full p-1 text-slate-400 hover:bg-slate-100'>
+          <button onClick={onClose} disabled={loading} className='rounded-full p-1 text-slate-400 hover:bg-slate-100 transition-colors disabled:opacity-50'>
             <XIcon className='size-4' />
           </button>
         </div>
         <div className='px-6 py-5 space-y-4'>
           <div className='flex items-start gap-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-700'>
-            <CheckCircleIcon className='size-5 shrink-0 text-blue-600 mt-0.5' />
-            <p>Reset password dikelola melalui Clerk Dashboard. Gunakan panel admin Clerk untuk mengirim email reset password kepada member.</p>
+            <KeyRoundIcon className='size-4 shrink-0 text-blue-600 mt-0.5' />
+            <p>
+              Password <span className='font-semibold'>{getDisplayName(member)}</span> akan diganti.
+              Sesi login lain akan dikeluarkan setelah password baru tersimpan.
+            </p>
           </div>
-          <div className='flex justify-end'>
-            <Button size='sm' onClick={onClose}>Tutup</Button>
+          <div className='space-y-2'>
+            <label htmlFor='new-password' className='text-sm font-medium text-slate-700'>Password Baru</label>
+            <input
+              id='new-password'
+              type='password'
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+              placeholder='Minimal 8 karakter'
+              className='w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50'
+            />
+            <p className='text-xs text-slate-500'>Berikan password baru ini langsung kepada member.</p>
+          </div>
+          <div className='flex justify-end gap-2'>
+            <Button variant='outline' size='sm' onClick={onClose} disabled={loading}>Batal</Button>
+            <Button size='sm' disabled={loading || !isValid} onClick={() => onConfirm(member.id_pengguna, password)} className='gap-1.5'>
+              <KeyRoundIcon className='size-3.5' />
+              {loading ? 'Memproses...' : 'Reset Password'}
+            </Button>
           </div>
         </div>
       </div>
@@ -151,7 +219,10 @@ export default function MembersPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [deactivateTarget, setDeactivateTarget] = useState<MemberRow | null>(null)
   const [deactivateLoading, setDeactivateLoading] = useState(false)
-  const [showInfoModal, setShowInfoModal] = useState(false)
+  const [activateTarget, setActivateTarget] = useState<MemberRow | null>(null)
+  const [activateLoading, setActivateLoading] = useState(false)
+  const [resetTarget, setResetTarget] = useState<MemberRow | null>(null)
+  const [resetLoading, setResetLoading] = useState(false)
 
   const fetchMembers = useCallback(async (q: string, status: string) => {
     setLoading(true)
@@ -184,7 +255,7 @@ export default function MembersPage() {
       const res = await fetch(`/api/admin/members?id=${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: false }),
+        body: JSON.stringify({ action: 'set_status', is_active: false }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'gagal menonaktifkan member')
@@ -196,6 +267,46 @@ export default function MembersPage() {
       toast.error('gagal menonaktifkan member')
     } finally {
       setDeactivateLoading(false)
+    }
+  }
+
+  const handleActivateConfirm = async (id: number) => {
+    setActivateLoading(true)
+    try {
+      const res = await fetch(`/api/admin/members?id=${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_status', is_active: true }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'gagal mengaktifkan member')
+      setMembers((prev) => prev.map((m) => (m.id_pengguna === id ? { ...m, is_active: true } : m)))
+      setActiveCount((prev) => Math.min(total, prev + 1))
+      setActivateTarget(null)
+      toast.success('member berhasil diaktifkan')
+    } catch (err: unknown) {
+      toast.error('gagal mengaktifkan member')
+    } finally {
+      setActivateLoading(false)
+    }
+  }
+
+  const handleResetPasswordConfirm = async (id: number, password: string) => {
+    setResetLoading(true)
+    try {
+      const res = await fetch(`/api/admin/members?id=${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset_password', password }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'gagal reset password')
+      setResetTarget(null)
+      toast.success('password member berhasil direset')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'gagal reset password')
+    } finally {
+      setResetLoading(false)
     }
   }
 
@@ -211,7 +322,22 @@ export default function MembersPage() {
           loading={deactivateLoading}
         />
       )}
-      {showInfoModal && <InfoModal onClose={() => setShowInfoModal(false)} />}
+      {activateTarget && (
+        <ActivateModal
+          member={activateTarget}
+          onClose={() => setActivateTarget(null)}
+          onConfirm={handleActivateConfirm}
+          loading={activateLoading}
+        />
+      )}
+      {resetTarget && (
+        <ResetPasswordModal
+          member={resetTarget}
+          onClose={() => setResetTarget(null)}
+          onConfirm={handleResetPasswordConfirm}
+          loading={resetLoading}
+        />
+      )}
 
       <div>
         <h1 className='text-2xl font-bold tracking-tight'>Library Members</h1>
@@ -342,17 +468,25 @@ export default function MembersPage() {
                           <MoreVerticalIcon className='size-4' />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align='end' className='w-48 z-[99]'>
-                          <DropdownMenuItem onClick={() => setShowInfoModal(true)} className='gap-2 cursor-pointer'>
-                            <InfoIcon className='size-4 text-slate-500' />
+                          <DropdownMenuItem onClick={() => setResetTarget(member)} className='gap-2 cursor-pointer'>
+                            <KeyRoundIcon className='size-4 text-slate-500' />
                             <span>Reset Password</span>
                           </DropdownMenuItem>
-                          {member.is_active && (
+                          {member.is_active ? (
                             <DropdownMenuItem
                               onClick={() => setDeactivateTarget(member)}
                               className='gap-2 cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700'
                             >
                               <ShieldOffIcon className='size-4 text-red-500' />
                               <span>Nonaktifkan Member</span>
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              onClick={() => setActivateTarget(member)}
+                              className='gap-2 cursor-pointer text-emerald-700 focus:bg-emerald-50 focus:text-emerald-700'
+                            >
+                              <ShieldCheckIcon className='size-4 text-emerald-600' />
+                              <span>Aktifkan Member</span>
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>

@@ -154,7 +154,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
             {/* Transactions */}
             <SidebarGroup>
-              <SidebarGroupLabel>Transaksi</SidebarGroupLabel>
+              <SidebarGroupLabel>Peminjaman</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
@@ -164,7 +164,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     >
                       <a href='/admin/transactions'>
                         <RefreshCwIcon />
-                        <span>Semua Transaksi</span>
+                        <span>Semua Peminjaman</span>
                       </a>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -207,31 +207,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                       dashboardStats.transactions.overdue > 0 && (
                         <SidebarMenuBadge className='bg-destructive text-destructive-foreground rounded-full'>
                           {dashboardStats.transactions.overdue}
-                        </SidebarMenuBadge>
-                      )}
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            {/* Finance */}
-            <SidebarGroup>
-              <SidebarGroupLabel>Keuangan</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith('/admin/fines')}>
-                      <a href='/admin/fines'>
-                        <BanknoteIcon />
-                        <span>Denda</span>
-                      </a>
-                    </SidebarMenuButton>
-                    {dashboardStats?.fines &&
-                      dashboardStats.fines.total_unpaid > 0 && (
-                        <SidebarMenuBadge className='bg-amber-100 text-amber-700 rounded-full'>
-                          {dashboardStats.fines.total_unpaid.toLocaleString('id-ID', {
-                            notation: 'compact',
-                          })}
                         </SidebarMenuBadge>
                       )}
                   </SidebarMenuItem>

@@ -8,7 +8,7 @@ type PenggunaRow = Database['public']['Tables']['pengguna']['Row']
 type AnggotaRow  = Database['public']['Tables']['anggota']['Row']
 
 interface PenggunaWithAnggota extends PenggunaRow {
-  anggota: Pick<AnggotaRow, 'id_anggota' | 'nama_anggota' | 'nis' | 'kelas' | 'foto'> | null
+  anggota: Pick<AnggotaRow, 'id_anggota' | 'nama_anggota' | 'nis' | 'kelas' | 'foto' | 'avatar_url' | 'nomor_hp'> | null
 }
 
 export async function GET() {
@@ -20,7 +20,7 @@ export async function GET() {
   // 1. Coba cari user di Supabase
   const { data, error } = await supabase
     .from('pengguna')
-    .select('id_pengguna, level, is_active, anggota(id_anggota, nama_anggota, nis, kelas, foto)')
+    .select('id_pengguna, level, is_active, anggota(id_anggota, nama_anggota, nis, kelas, foto, avatar_url, nomor_hp)')
     .eq('clerk_id', userId)
     .single() as unknown as { data: PenggunaWithAnggota | null; error: any }
 
@@ -36,6 +36,8 @@ export async function GET() {
       nis:          anggota?.nis          ?? null,
       kelas:        anggota?.kelas        ?? null,
       foto:         anggota?.foto         ?? null,
+      avatar_url:   anggota?.avatar_url   ?? null,
+      nomor_hp:     anggota?.nomor_hp     ?? null,
     })
   }
 
@@ -71,13 +73,15 @@ export async function GET() {
       id_pengguna: newPengguna.id_pengguna,
       nama_anggota: nama,
       email: email,
-      foto: fotoUrl
+      foto: fotoUrl,
+      avatar_url: fotoUrl,
+      clerk_id: userId,
     }
 
     const { data: newAnggota, error: errAnggota } = await supabase
       .from('anggota')
       .insert(payloadAnggota)
-      .select('id_anggota, nama_anggota, nis, kelas, foto')
+      .select('id_anggota, nama_anggota, nis, kelas, foto, avatar_url, nomor_hp')
       .single() as any
 
     if (errAnggota) throw errAnggota
@@ -91,6 +95,8 @@ export async function GET() {
       nis:          newAnggota?.nis,
       kelas:        newAnggota?.kelas,
       foto:         newAnggota?.foto,
+      avatar_url:   newAnggota?.avatar_url,
+      nomor_hp:     newAnggota?.nomor_hp,
     })
 
   } catch (insertError: any) {

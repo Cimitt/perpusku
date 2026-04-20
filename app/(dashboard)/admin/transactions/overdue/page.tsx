@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   BellIcon, MailIcon, AlertCircleIcon, ClockIcon, UserIcon,
   BookOpenIcon, DollarSignIcon, Loader2Icon, RefreshCwIcon,
-  InfoIcon, CalendarIcon, CheckCircle2Icon
+  InfoIcon, CheckCircle2Icon, MessageCircleIcon
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -43,6 +43,7 @@ export default function OverduePage() {
   const [loading, setLoading] = useState(true)
   const [isMounted, setIsMounted] = useState(false) // Fix Hydration
   const [sendingEmail, setSendingEmail] = useState<number | null>(null)
+  const [sendingWhatsApp, setSendingWhatsApp] = useState<number | null>(null)
   const [selectedItem, setSelectedItem] = useState<MonitoringDendaRow | null>(null)
   const [payingFine, setPayingFine] = useState<number | null>(null)
   const [confirmPayItem, setConfirmPayItem] = useState<MonitoringDendaRow | null>(null)
@@ -140,6 +141,54 @@ export default function OverduePage() {
     setSendingEmail(null);
   }
 };
+
+  const buildWhatsAppMessage = (item: MonitoringDendaRow) => {
+    return [
+      `Halo ${item.nama_anggota},`,
+      '',
+      'Kami dari Perpustakaan SMK 2 ingin menginformasikan bahwa peminjaman buku berikut sudah melewati batas waktu pengembalian:',
+      '',
+      `Buku: ${item.judul_buku}`,
+      `NIS: ${item.nis}`,
+      `Kelas: ${item.kelas || '-'}`,
+      `Batas kembali: ${format(new Date(item.tgl_kembali_rencana), 'dd MMMM yyyy', { locale: localeId })}`,
+      `Keterlambatan: ${item.hari_keterlambatan} hari`,
+      `Total denda: Rp ${item.denda_realtime.toLocaleString('id-ID')}`,
+      '',
+      'Mohon segera mengembalikan buku dan menyelesaikan administrasi denda di meja petugas perpustakaan.',
+      'Abaikan pesan ini jika pembayaran sudah diselesaikan.'
+    ].join('\n')
+  }
+
+  const handleSendWhatsAppBill = async (item: MonitoringDendaRow) => {
+    const whatsappWindow = window.open('', '_blank')
+    try {
+      if (!whatsappWindow) {
+        throw new Error('Popup WhatsApp diblokir browser. Izinkan popup untuk halaman ini.')
+      }
+
+      setSendingWhatsApp(item.id_transaksi)
+      const response = await fetch('/api/admin/transactions/overdue/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_transaksi: item.id_transaksi }),
+      })
+      const result = await response.json()
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Gagal menyiapkan WhatsApp')
+      }
+
+      const message = encodeURIComponent(buildWhatsAppMessage(item))
+      whatsappWindow.opener = null
+      whatsappWindow.location.href = `https://web.whatsapp.com/send?phone=${result.phone}&text=${message}`
+      toast.success(`Tagihan WhatsApp untuk ${item.nama_anggota} siap dikirim.`)
+    } catch (err: any) {
+      whatsappWindow?.close()
+      toast.error(err.message || 'Gagal menyiapkan tagihan WhatsApp')
+    } finally {
+      setSendingWhatsApp(null)
+    }
+  }
 
   const handlePayFine = async (item: MonitoringDendaRow) => {
     try {
@@ -241,6 +290,16 @@ export default function OverduePage() {
                   </div>
                   <div className='flex gap-2 w-full md:w-auto'>
                     <Button size='sm' variant='outline' className='flex-1 md:flex-none' onClick={() => setSelectedItem(item)}>Detail</Button>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      className='flex-1 md:flex-none border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800'
+                      onClick={() => handleSendWhatsAppBill(item)}
+                      disabled={sendingWhatsApp === item.id_transaksi}
+                    >
+                      {sendingWhatsApp === item.id_transaksi ? <Loader2Icon className="size-3 animate-spin mr-2" /> : <MessageCircleIcon className='size-3 mr-2' />}
+                      WA
+                    </Button>
                     <Button 
                       size='sm' 
                       className='bg-red-600 hover:bg-red-700 flex-1 md:flex-none' 
@@ -329,6 +388,18 @@ export default function OverduePage() {
             <Button className="bg-red-600 hover:bg-red-700" onClick={() => { if(selectedItem) handleSendBill(selectedItem); setSelectedItem(null); }}>
               <MailIcon className='size-4 mr-2' />
               Kirim Nota Gmail
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => { if(selectedItem) handleSendWhatsAppBill(selectedItem); setSelectedItem(null); }}
+              disabled={selectedItem ? sendingWhatsApp === selectedItem.id_transaksi : false}
+            >
+              {selectedItem && sendingWhatsApp === selectedItem.id_transaksi ? (
+                <Loader2Icon className='size-4 mr-2 animate-spin' />
+              ) : (
+                <MessageCircleIcon className='size-4 mr-2' />
+              )}
+              Kirim WhatsApp
             </Button>
           </DialogFooter>
         </DialogContent>

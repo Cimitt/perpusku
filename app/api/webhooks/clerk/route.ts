@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
   // user.created
   if (event.type === 'user.created') {
-    const { id: clerkId, username, email_addresses, primary_email_address_id, first_name, last_name } = event.data
+    const { id: clerkId, username, email_addresses, primary_email_address_id, first_name, last_name, image_url } = event.data
 
     const primaryEmail = email_addresses.find(e => e.id === primary_email_address_id)?.email_address
       ?? email_addresses[0]?.email_address
@@ -88,7 +88,10 @@ export async function POST(req: NextRequest) {
         email:        primaryEmail,
         nis:          null,
         kelas:        null,
-        foto:         null,
+        foto:         image_url || null,
+        avatar_url:   image_url || null,
+        username:     username ?? null,
+        clerk_id:     clerkId,
       })
 
     if (anggotaError) {
@@ -101,7 +104,7 @@ export async function POST(req: NextRequest) {
 
   // user.updated
   if (event.type === 'user.updated') {
-    const { id: clerkId, email_addresses, primary_email_address_id, first_name, last_name, username } = event.data
+    const { id: clerkId, email_addresses, primary_email_address_id, first_name, last_name, username, image_url } = event.data
 
     const primaryEmail = email_addresses.find(e => e.id === primary_email_address_id)?.email_address
       ?? email_addresses[0]?.email_address
@@ -114,6 +117,16 @@ export async function POST(req: NextRequest) {
         ...(primaryEmail && { email: primaryEmail }),
         ...(namaLengkap && { nama_pengguna: namaLengkap }),
         ...(username && { username }),
+      })
+      .eq('clerk_id', clerkId)
+
+    await supabase
+      .from('anggota')
+      .update({
+        ...(primaryEmail && { email: primaryEmail }),
+        ...(namaLengkap && { nama_anggota: namaLengkap }),
+        ...(username && { username }),
+        ...(image_url && { foto: image_url }),
       })
       .eq('clerk_id', clerkId)
 

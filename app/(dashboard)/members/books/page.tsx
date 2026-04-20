@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useUser } from '@clerk/nextjs'
 import Image from 'next/image' // Optimasi gambar Next.js
+import { useRouter } from 'next/navigation'
 import {
   SearchIcon,
   ShoppingBagIcon,
@@ -33,6 +34,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -52,8 +54,17 @@ interface CartItem extends BookItem {
   qty: number
 }
 
+interface BorrowBlockInfo {
+  message: string
+  totalDenda: number
+  jumlahDendaBelumLunas: number
+  jumlahKeterlambatan: number
+  redirectTo: string
+}
+
 export default function BrowseCatalogPage() {
   const { isLoaded } = useUser()
+  const router = useRouter()
 
   // State Management
   const [books, setBooks] = useState<BookItem[]>([])
@@ -66,6 +77,10 @@ export default function BrowseCatalogPage() {
   const [isCheckingOut, setIsCheckingOut] = useState(false)
   const [selectedBook, setSelectedBook] = useState<BookItem | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false)
+  const [missingProfileFields, setMissingProfileFields] = useState<string[]>([])
+  const [borrowBlockDialogOpen, setBorrowBlockDialogOpen] = useState(false)
+  const [borrowBlockInfo, setBorrowBlockInfo] = useState<BorrowBlockInfo | null>(null)
 
   // Reviews state
   const [reviews, setReviews] = useState<any[]>([])
@@ -185,10 +200,22 @@ export default function BrowseCatalogPage() {
       const json = await res.json()
 
       if (!res.ok) {
-        // Denda aktif — member tidak boleh pinjam
-        if (json.denda_aktif) {
-          toast.error(json.error, { duration: 5000 })
-          setIsCheckingOut(false)
+        if (json.profile_incomplete) {
+          setMissingProfileFields(Array.isArray(json.missing_fields) ? json.missing_fields : [])
+          setIsCartOpen(false)
+          setProfileDialogOpen(true)
+          return
+        }
+        if (json.peminjaman_diblokir || json.denda_aktif || json.keterlambatan_aktif) {
+          setBorrowBlockInfo({
+            message: json.error || 'Kamu belum bisa mengajukan peminjaman karena masih memiliki denda atau buku terlambat.',
+            totalDenda: Number(json.total_denda ?? 0),
+            jumlahDendaBelumLunas: Number(json.jumlah_denda_belum_lunas ?? 0),
+            jumlahKeterlambatan: Number(json.jumlah_keterlambatan ?? 0),
+            redirectTo: typeof json.redirect_to === 'string' ? json.redirect_to : '/members/loans',
+          })
+          setIsCartOpen(false)
+          setBorrowBlockDialogOpen(true)
           return
         }
         // Update UI ketika stok tidak mencukupi
@@ -498,6 +525,91 @@ export default function BrowseCatalogPage() {
           >
             {isCheckingOut ? <><Loader2 className="mr-2 animate-spin size-4" /> Memproses...</> : 'Konfirmasi Pinjaman'}
           </Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={borrowBlockDialogOpen} onOpenChange={setBorrowBlockDialogOpen}>
+        <DialogContent className="max-w-[92vw] md:max-w-[430px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-bold">Peminjaman Ditahan</DialogTitle>
+            <DialogDescription>
+              Selesaikan pembayaran denda terlebih dahulu agar bisa mengajukan peminjaman baru.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-xs leading-relaxed text-red-700">
+              {borrowBlockInfo?.message}
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-xl border bg-slate-50 p-3">
+                <p className="text-slate-500">Total denda</p>
+                <p className="mt-1 font-black text-slate-900">
+                  Rp {(borrowBlockInfo?.totalDenda ?? 0).toLocaleString('id-ID')}
+                </p>
+              </div>
+              <div className="rounded-xl border bg-slate-50 p-3">
+                <p className="text-slate-500">Buku terlambat</p>
+                <p className="mt-1 font-black text-slate-900">
+                  {borrowBlockInfo?.jumlahKeterlambatan ?? 0}
+                </p>
+              </div>
+            </div>
+            {(borrowBlockInfo?.jumlahDendaBelumLunas ?? 0) > 0 && (
+              <p className="text-xs font-medium text-slate-500">
+                Ada {borrowBlockInfo?.jumlahDendaBelumLunas} transaksi denda yang belum lunas.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBorrowBlockDialogOpen(false)}
+            >
+              Tutup
+            </Button>
+            <Button
+              onClick={() => {
+                setBorrowBlockDialogOpen(false)
+                router.push(borrowBlockInfo?.redirectTo ?? '/members/loans')
+              }}
+            >
+              Bayar Denda
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
+        <DialogContent className="max-w-[92vw] md:max-w-[420px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-bold">Lengkapi Profil Dulu</DialogTitle>
+            <DialogDescription>
+              Kamu perlu melengkapi data profil sebelum mengajukan peminjaman buku.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-xl border bg-slate-50 p-3 text-xs text-slate-600">
+            Data yang belum lengkap:{' '}
+            <span className="font-bold text-slate-900">
+              {missingProfileFields.length > 0 ? missingProfileFields.join(', ') : 'NIS, Kelas, Nomor HP'}
+            </span>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setProfileDialogOpen(false)}
+            >
+              Nanti
+            </Button>
+            <Button
+              onClick={() => {
+                setProfileDialogOpen(false)
+                setIsCartOpen(false)
+                router.push('/members/profile')
+              }}
+            >
+              Lengkapi Profil
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

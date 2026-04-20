@@ -4,8 +4,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sanitizePostgrestValue } from '@/lib/security'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic'
+
 // validation schemas
-const BookInsertSchema = z.object({
+const BookBaseSchema = z.object({
   judul_buku:     z.string().min(1, 'Judul wajib diisi'),
   id_kategori:    z.number().nullable().optional(),
   pengarang:      z.string().nullable().optional(),
@@ -18,7 +20,33 @@ const BookInsertSchema = z.object({
   stok_tersedia:  z.number().int().min(0).default(1),
 })
 
-const BookUpdateSchema = BookInsertSchema.partial()
+const BookInsertSchema = BookBaseSchema.superRefine((data, ctx) => {
+  if (data.stok_tersedia > data.stok) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['stok_tersedia'],
+      message: 'Stok tersedia tidak boleh melebihi stok total',
+    })
+  }
+})
+
+const BookUpdateSchema = BookBaseSchema.partial().superRefine((data, ctx) => {
+  if (
+    data.stok !== undefined &&
+    data.stok_tersedia !== undefined &&
+    data.stok_tersedia > data.stok
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['stok_tersedia'],
+      message: 'Stok tersedia tidak boleh melebihi stok total',
+    })
+  }
+})
+
+function getBookStatus(stokTersedia: number): 'tersedia' | 'tidak' {
+  return stokTersedia > 0 ? 'tersedia' : 'tidak'
+}
 
 // auth guard
 async function requireAdmin() {
@@ -42,6 +70,7 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient()
   const { searchParams } = new URL(req.url)
   const query = searchParams.get('q') ?? ''
+  const categoryId = searchParams.get('category') ?? searchParams.get('categoryId')
 
   let dbQuery = supabase
     .from('buku')
@@ -53,6 +82,10 @@ export async function GET(req: NextRequest) {
     dbQuery = dbQuery.or(
       `judul_buku.ilike.%${safe}%,pengarang.ilike.%${safe}%,isbn.ilike.%${safe}%`
     )
+  }
+
+  if (categoryId && !Number.isNaN(Number(categoryId))) {
+    dbQuery = dbQuery.eq('id_kategori', Number(categoryId))
   }
 
   const { data, error } = await dbQuery
@@ -78,9 +111,15 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  const bookData = {
+    ...parsed.data,
+    stok_tersedia: parsed.data.stok,
+    status: getBookStatus(parsed.data.stok),
+  }
+
   const { data, error } = await supabase
     .from('buku')
-    .insert(parsed.data)
+    .insert(bookData)
     .select()
     .single()
 
@@ -109,9 +148,45 @@ export async function PATCH(req: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  const { data: existingBook, error: findError } = await supabase
+    .from('buku')
+    .select('stok, stok_tersedia')
+    .eq('id_buku', id)
+    .single()
+
+  if (findError || !existingBook) {
+    return NextResponse.json({ error: 'Buku tidak ditemukan' }, { status: 404 })
+  }
+
+  const borrowedCount = Math.max(
+    0,
+    (existingBook.stok ?? 0) - (existingBook.stok_tersedia ?? 0)
+  )
+  const nextStock = parsed.data.stok ?? existingBook.stok
+
+  if (nextStock < borrowedCount) {
+    return NextResponse.json(
+      {
+        error: `Stok total tidak boleh lebih kecil dari jumlah buku yang sedang dipinjam (${borrowedCount}).`,
+      },
+      { status: 400 }
+    )
+  }
+
+  const nextAvailableStock =
+    parsed.data.stok === undefined
+      ? Math.min(existingBook.stok_tersedia ?? 0, nextStock)
+      : nextStock - borrowedCount
+
+  const updateData = {
+    ...parsed.data,
+    stok_tersedia: nextAvailableStock,
+    status: getBookStatus(nextAvailableStock),
+  }
+
   const { data, error } = await supabase
     .from('buku')
-    .update(parsed.data)
+    .update(updateData)
     .eq('id_buku', id)
     .select()
     .single()

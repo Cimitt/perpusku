@@ -169,6 +169,8 @@ export interface ProfileData {
     nis: string | null
     kelas: string | null
     foto: string | null
+    avatar_url: string | null
+    nomor_hp: string | null
     email: string | null
   } | null
 }

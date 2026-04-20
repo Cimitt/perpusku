@@ -240,7 +240,7 @@ export function BookFormDialog({
   const onSubmit = async (data: BukuFormData) => {
     setLoading(true)
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         judul_buku:     data.judul_buku,
         id_kategori:    data.id_kategori,
         pengarang:      data.pengarang,
@@ -249,11 +249,11 @@ export function BookFormDialog({
         isbn:           data.isbn,
         deskripsi_buku: data.deskripsi_buku,
         stok:           data.stok,
-        stok_tersedia:  data.stok,
         gambar_buku:    coverUrl,
       }
 
       if (mode === 'create') {
+        payload.stok_tersedia = data.stok
         const res = await fetch('/api/admin/books', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -377,9 +377,15 @@ export function BookFormDialog({
               id="stok"
               type="number"
               min={0}
+              step={1}
               className="max-w-[120px]"
               {...register('stok', { valueAsNumber: true })}
             />
+            {mode === 'edit' && (
+              <p className="text-xs text-muted-foreground">
+                Stok tersedia akan dihitung otomatis dari stok total dikurangi buku yang sedang dipinjam.
+              </p>
+            )}
             {errors.stok && (
               <p className="text-xs text-red-500">{errors.stok.message}</p>
             )}

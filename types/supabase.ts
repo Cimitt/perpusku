@@ -50,6 +50,7 @@ export type Database = {
           username: string | null
           avatar_url: string | null
           clerk_id: string | null
+          nomor_hp: string | null
           created_at: string
           updated_at: string
         }
@@ -64,6 +65,7 @@ export type Database = {
           username?: string | null
           avatar_url?: string | null
           clerk_id?: string | null
+          nomor_hp?: string | null
           created_at?: string
           updated_at?: string
         }

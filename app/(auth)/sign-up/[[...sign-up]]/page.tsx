@@ -1,9 +1,21 @@
 import { SignUp } from '@clerk/nextjs'
+import AuthPageShell, { clerkAuthAppearance } from '@/components/auth/AuthPageShell'
 
 export default function SignUpPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-violet-50">
-      <SignUp />
-    </div>
+    <AuthPageShell
+      eyebrow="Daftar Untuk Melanjutkan"
+      title="Mulai Perjalanan Membaca Anda"
+      description="Buat akun untuk mencari buku, menyimpan favorit, dan memakai QR peminjaman."
+      switchLabel="Sudah punya akun?"
+      switchHref="/sign-in"
+      switchText="Masuk"
+    >
+      <SignUp
+        appearance={clerkAuthAppearance}
+        fallbackRedirectUrl="/members"
+        signInUrl="/sign-in"
+      />
+    </AuthPageShell>
   )
 }

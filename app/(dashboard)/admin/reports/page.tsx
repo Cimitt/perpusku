@@ -4,13 +4,14 @@ import { useState, useCallback } from 'react'
 import {
   FileTextIcon, DownloadIcon, CalendarIcon,
   BookOpenIcon, BanknoteIcon, Loader2Icon,
+  SearchIcon,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
-import { id } from 'date-fns/locale'
+import { buildAdminReportPdf, type AdminReportRow } from '@/lib/admin-report-pdf'
 
 import type { ReportType } from '@/types'
 
@@ -50,13 +51,10 @@ const REPORTS: ReportConfig[] = [
   },
 ]
 
-function formatRp(n: number) {
-  return `Rp ${n.toLocaleString('id-ID')}`
-}
-
 export default function ReportsPage() {
   const [dateFrom, setDateFrom]     = useState('')
   const [dateTo, setDateTo]         = useState('')
+  const [search, setSearch]         = useState('')
   const [generating, setGenerating] = useState<ReportType | null>(null)
 
   const generatePDF = useCallback(async (type: ReportType) => {
@@ -67,12 +65,13 @@ export default function ReportsPage() {
         if (dateFrom) params.set('from', dateFrom)
         if (dateTo)   params.set('to', dateTo)
       }
+      if (search.trim()) params.set('q', search.trim())
 
       const res = await fetch(`/api/admin/reports?${params}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'gagal mengambil data')
 
-      const rows: Record<string, unknown>[] = json.data ?? []
+      const rows = (json.data ?? []) as AdminReportRow[]
       if (rows.length === 0) {
         toast.warning('tidak ada data untuk diekspor')
         return
@@ -81,134 +80,7 @@ export default function ReportsPage() {
       const { jsPDF } = await import('jspdf')
       const doc = new jsPDF({ orientation: type === 'books' ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' })
 
-      const pageW   = doc.internal.pageSize.getWidth()
-      const marginL = 15
-      const marginR = 15
-      const usableW = pageW - marginL - marginR
-      let y = 20
-
-      doc.setFontSize(16)
-      doc.setFont('helvetica', 'bold')
-      doc.text('PerpuSmuhda — Sistem Perpustakaan Digital', marginL, y)
-      y += 7
-
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'normal')
-      const cfg = REPORTS.find((r) => r.type === type)!
-      doc.text(cfg.title, marginL, y)
-      y += 5
-
-      doc.setFontSize(8)
-      doc.setTextColor(150)
-      doc.text(`Dicetak: ${format(new Date(), 'dd MMMM yyyy, HH:mm', { locale: id })}`, marginL, y)
-      doc.setTextColor(0)
-      y += 8
-
-      doc.setDrawColor(200)
-      doc.line(marginL, y, pageW - marginR, y)
-      y += 6
-
-      if (type === 'transactions') {
-        const cols = [
-          { label: '#', width: 10 }, { label: 'Anggota', width: 40 }, { label: 'Buku', width: 55 },
-          { label: 'Tgl Pinjam', width: 28 }, { label: 'Tgl Kembali', width: 28 },
-          { label: 'Status', width: 24 }, { label: 'Denda', width: 25 },
-        ]
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'bold')
-        doc.setFillColor(240, 240, 245)
-        doc.rect(marginL, y - 4, usableW, 8, 'F')
-        let cx = marginL
-        cols.forEach((c) => { doc.text(c.label, cx + 1, y); cx += c.width })
-        y += 6
-        doc.setFont('helvetica', 'normal')
-        rows.forEach((row: any, idx) => {
-          if (y > 270) { doc.addPage(); y = 20 }
-          if (idx % 2 === 0) { doc.setFillColor(250, 250, 252); doc.rect(marginL, y - 4, usableW, 6, 'F') }
-          cx = marginL
-          const cells = [
-            String(idx + 1),
-            String(row.anggota?.nama_anggota ?? row.id_anggota ?? '-').slice(0, 20),
-            String(row.buku?.judul_buku ?? '-').slice(0, 30),
-            row.tgl_pinjam ? format(new Date(row.tgl_pinjam), 'dd/MM/yyyy') : '-',
-            row.tgl_kembali_rencana ? format(new Date(row.tgl_kembali_rencana), 'dd/MM/yyyy') : '-',
-            String(row.status_transaksi ?? '-'),
-            row.denda > 0 ? formatRp(row.denda) : '-',
-          ]
-          cells.forEach((cell, ci) => { doc.text(cell, cx + 1, y); cx += cols[ci].width })
-          y += 6
-        })
-      }
-
-      if (type === 'fines') {
-        const cols = [
-          { label: '#', width: 10 }, { label: 'Anggota', width: 55 }, { label: 'NIS', width: 30 },
-          { label: 'Kelas', width: 25 }, { label: 'Total', width: 35 }, { label: 'Dibayar', width: 35 }, { label: 'Belum', width: 35 },
-        ]
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'bold')
-        doc.setFillColor(240, 240, 245)
-        doc.rect(marginL, y - 4, usableW, 8, 'F')
-        let cx = marginL
-        cols.forEach((c) => { doc.text(c.label, cx + 1, y); cx += c.width })
-        y += 6
-        doc.setFont('helvetica', 'normal')
-        rows.forEach((row: any, idx) => {
-          if (y > 270) { doc.addPage(); y = 20 }
-          if (idx % 2 === 0) { doc.setFillColor(250, 250, 252); doc.rect(marginL, y - 4, usableW, 6, 'F') }
-          cx = marginL
-          const cells = [
-            String(idx + 1), String(row.nama_anggota ?? '-').slice(0, 30), String(row.nis ?? '-'),
-            String(row.kelas ?? '-'), formatRp(row.total_denda ?? 0),
-            formatRp(row.denda_dibayar ?? 0), formatRp(row.denda_belum_bayar ?? 0),
-          ]
-          cells.forEach((cell, ci) => { doc.text(cell, cx + 1, y); cx += cols[ci].width })
-          y += 6
-        })
-      }
-
-      if (type === 'books') {
-        const cols = [
-          { label: '#', width: 10 }, { label: 'Judul', width: 70 }, { label: 'Pengarang', width: 45 },
-          { label: 'Kategori', width: 35 }, { label: 'Tahun', width: 20 },
-          { label: 'Stok', width: 20 }, { label: 'Tersedia', width: 22 }, { label: 'Rating', width: 20 },
-        ]
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'bold')
-        doc.setFillColor(240, 240, 245)
-        doc.rect(marginL, y - 4, usableW, 8, 'F')
-        let cx = marginL
-        cols.forEach((c) => { doc.text(c.label, cx + 1, y); cx += c.width })
-        y += 6
-        doc.setFont('helvetica', 'normal')
-        rows.forEach((row: any, idx) => {
-          if (y > 190) { doc.addPage(); y = 20 }
-          if (idx % 2 === 0) { doc.setFillColor(250, 250, 252); doc.rect(marginL, y - 4, usableW, 6, 'F') }
-          cx = marginL
-          const cells = [
-            String(idx + 1), String(row.judul_buku ?? '-').slice(0, 38),
-            String(row.pengarang ?? '-').slice(0, 22), String(row.nama_kategori ?? '-').slice(0, 18),
-            String(row.tahun_terbit ?? '-'), String(row.stok ?? 0),
-            String(row.stok_tersedia ?? 0), row.rating_rata_rata ? String(row.rating_rata_rata) : '-',
-          ]
-          cells.forEach((cell, ci) => { doc.text(cell, cx + 1, y); cx += cols[ci].width })
-          y += 6
-        })
-      }
-
-      const totalPages = (doc.internal as any).getNumberOfPages()
-      for (let p = 1; p <= totalPages; p++) {
-        doc.setPage(p)
-        doc.setFontSize(7)
-        doc.setTextColor(180)
-        doc.text(
-          `Halaman ${p} dari ${totalPages} — PerpuSmuhda`,
-          pageW / 2,
-          doc.internal.pageSize.getHeight() - 8,
-          { align: 'center' }
-        )
-        doc.setTextColor(0)
-      }
+      buildAdminReportPdf(doc, { type, rows, dateFrom, dateTo, search })
 
       doc.save(`laporan-${type}-${format(new Date(), 'yyyyMMdd-HHmm')}.pdf`)
       toast.success('PDF berhasil diunduh!')
@@ -217,7 +89,7 @@ export default function ReportsPage() {
     } finally {
       setGenerating(null)
     }
-  }, [dateFrom, dateTo])
+  }, [dateFrom, dateTo, search])
 
   return (
     <div className='space-y-6 animate-in fade-in duration-500 max-w-4xl'>
@@ -230,12 +102,24 @@ export default function ReportsPage() {
         <CardHeader className='pb-3'>
           <CardTitle className='text-base flex items-center gap-2'>
             <CalendarIcon className='size-4 text-indigo-600' />
-            Filter Tanggal (untuk Laporan Transaksi)
+            Filter Laporan
           </CardTitle>
-          <CardDescription>Kosongkan untuk mengambil semua data.</CardDescription>
+          <CardDescription>Filter tanggal berlaku untuk transaksi. Pencarian berlaku untuk semua jenis laporan.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className='flex flex-col gap-4 sm:flex-row sm:items-center'>
+          <div className='grid gap-4 md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-end'>
+            <div className='space-y-1'>
+              <label className='text-xs font-medium text-slate-600'>Cari Data</label>
+              <div className='relative'>
+                <SearchIcon className='absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400' />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder='Nama, NIS, judul, kategori...'
+                  className='w-full rounded-md border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400'
+                />
+              </div>
+            </div>
             <div className='flex-1 space-y-1'>
               <label className='text-xs font-medium text-slate-600'>Dari Tanggal</label>
               <input
@@ -258,7 +142,7 @@ export default function ReportsPage() {
               variant='ghost'
               size='sm'
               className='self-end text-slate-500'
-              onClick={() => { setDateFrom(''); setDateTo('') }}
+              onClick={() => { setDateFrom(''); setDateTo(''); setSearch('') }}
             >
               Reset
             </Button>
@@ -301,9 +185,9 @@ export default function ReportsPage() {
           <FileTextIcon className='size-3.5' />
           Tips Ekspor
         </div>
-        <p>laporan transaksi: gunakan filter tanggal untuk periode tertentu</p>
-        <p>laporan denda: mencakup semua anggota yang pernah dikenai denda</p>
-        <p>laporan inventaris: snapshot ketersediaan buku saat ini</p>
+        <p>Laporan transaksi memakai data riwayat lengkap beserta denda realtime.</p>
+        <p>Laporan denda menghitung sudah dibayar dari total denda dikurangi denda belum bayar.</p>
+        <p>Laporan inventaris adalah snapshot stok dan ketersediaan saat PDF dibuat.</p>
       </div>
     </div>
   )
