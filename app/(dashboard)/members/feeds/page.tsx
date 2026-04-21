@@ -9,12 +9,14 @@ import {
   FeedCreateModal,
   FeedLoading,
   FeedEmpty,
+  FeedManageDialog,
 } from '@/components/member/feeds'
 
 export default function ReviewFeedPage() {
   const {
     posts,
     loading,
+    currentMemberId,
     commentInputs,
     setCommentInputs,
     selectedPost,
@@ -28,6 +30,12 @@ export default function ReviewFeedPage() {
     previewUrl,
     mediaType,
     fileInputRef,
+    manageMode,
+    manageTarget,
+    editCaption,
+    isUpdatingFeed,
+    isDeletingFeed,
+    setEditCaption,
     actions,
     user,
   } = useFeeds()
@@ -67,6 +75,9 @@ export default function ReviewFeedPage() {
               onCommentSubmit={(e) => actions.handleAddComment(post.id_feed, e)}
               onLike={() => actions.toggleLike(post.id_feed)}
               onOpenComments={() => setSelectedPost(post)}
+              canManage={post.id_anggota === currentMemberId}
+              onEdit={() => actions.openEditDialog(post)}
+              onDelete={() => actions.openDeleteDialog(post)}
             />
           ))
         )}
@@ -102,6 +113,17 @@ export default function ReviewFeedPage() {
         onFileChange={actions.handleFileChange}
         onClearFile={actions.clearFile}
         onSubmit={actions.handleCreateFeed}
+      />
+
+      <FeedManageDialog
+        mode={manageMode}
+        post={manageTarget}
+        editCaption={editCaption}
+        isSubmitting={isUpdatingFeed || isDeletingFeed}
+        onOpenChange={(open) => !open && actions.closeManageDialog()}
+        onEditCaptionChange={setEditCaption}
+        onConfirmEdit={actions.handleEditFeed}
+        onConfirmDelete={actions.handleDeleteFeed}
       />
 
     </div>

@@ -13,6 +13,7 @@ export function useFeeds() {
   const [posts, setPosts] = useState<FeedPost[]>([])
   const [loading, setLoading] = useState(true)
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({})
+  const [currentMemberId, setCurrentMemberId] = useState<number | null>(null)
 
   // comment modal state
   const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null)
@@ -27,6 +28,19 @@ export function useFeeds() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string>('')
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image')
+  const [manageMode, setManageMode] = useState<'edit' | 'delete' | null>(null)
+  const [manageTarget, setManageTarget] = useState<FeedPost | null>(null)
+  const [editCaption, setEditCaption] = useState('')
+  const [isUpdatingFeed, setIsUpdatingFeed] = useState(false)
+  const [isDeletingFeed, setIsDeletingFeed] = useState(false)
+
+  const canManagePost = useCallback(
+    (post: FeedPost | null) => {
+      if (!post || currentMemberId === null) return false
+      return post.id_anggota === currentMemberId
+    },
+    [currentMemberId]
+  )
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -46,6 +60,21 @@ export function useFeeds() {
   useEffect(() => {
     fetchFeeds()
   }, [fetchFeeds])
+
+  useEffect(() => {
+    const fetchMe = async () => {
+      try {
+        const res = await fetch('/api/member/me')
+        if (!res.ok) throw new Error('Gagal memuat profil anggota')
+        const data = await res.json()
+        setCurrentMemberId(data.id_anggota ?? null)
+      } catch {
+        setCurrentMemberId(null)
+      }
+    }
+
+    fetchMe()
+  }, [])
 
   // ── Like ───────────────────────────────────────────────────────────────────
 
@@ -200,10 +229,128 @@ export function useFeeds() {
     }
   }
 
+  const openEditDialog = (post: FeedPost) => {
+    if (!canManagePost(post)) {
+      toast.error('Kamu hanya bisa mengedit feed milikmu sendiri.')
+      return
+    }
+
+    setManageTarget(post)
+    setEditCaption(post.caption ?? '')
+    setManageMode('edit')
+  }
+
+  const openDeleteDialog = (post: FeedPost) => {
+    if (!canManagePost(post)) {
+      toast.error('Kamu hanya bisa menghapus feed milikmu sendiri.')
+      return
+    }
+
+    setManageTarget(post)
+    setManageMode('delete')
+  }
+
+  const closeManageDialog = () => {
+    if (isUpdatingFeed || isDeletingFeed) return
+    setManageMode(null)
+    setManageTarget(null)
+    setEditCaption('')
+  }
+
+  const handleEditFeed = async () => {
+    if (!manageTarget || !editCaption.trim()) return
+    if (!canManagePost(manageTarget)) {
+      toast.error('Kamu hanya bisa mengedit feed milikmu sendiri.')
+      closeManageDialog()
+      return
+    }
+
+    setIsUpdatingFeed(true)
+
+    try {
+      const res = await fetch(`/api/feeds/${manageTarget.id_feed}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ caption: editCaption.trim() }),
+      })
+
+      const payload = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(payload?.error || 'Gagal memperbarui feed')
+      }
+
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id_feed === manageTarget.id_feed
+            ? { ...post, caption: editCaption.trim() }
+            : post
+        )
+      )
+
+      if (selectedPost?.id_feed === manageTarget.id_feed) {
+        setSelectedPost((prev) => (prev ? { ...prev, caption: editCaption.trim() } : prev))
+      }
+
+      toast.success('Feed berhasil diperbarui.')
+      setManageMode(null)
+      setManageTarget(null)
+      setEditCaption('')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal memperbarui feed.')
+    } finally {
+      setIsUpdatingFeed(false)
+    }
+  }
+
+  const handleDeleteFeed = async () => {
+    if (!manageTarget) return
+    if (!canManagePost(manageTarget)) {
+      toast.error('Kamu hanya bisa menghapus feed milikmu sendiri.')
+      closeManageDialog()
+      return
+    }
+
+    setIsDeletingFeed(true)
+
+    try {
+      const res = await fetch(`/api/feeds/${manageTarget.id_feed}`, {
+        method: 'DELETE',
+      })
+
+      const payload = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(payload?.error || 'Gagal menghapus feed')
+      }
+
+      setPosts((prev) => prev.filter((post) => post.id_feed !== manageTarget.id_feed))
+      setCommentInputs((prev) => {
+        const next = { ...prev }
+        delete next[manageTarget.id_feed]
+        return next
+      })
+
+      if (selectedPost?.id_feed === manageTarget.id_feed) {
+        setSelectedPost(null)
+      }
+
+      toast.success('Feed berhasil dihapus.')
+      setManageMode(null)
+      setManageTarget(null)
+      setEditCaption('')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal menghapus feed.')
+    } finally {
+      setIsDeletingFeed(false)
+    }
+  }
+
   return {
     // data
     posts,
     loading,
+    currentMemberId,
     // comment input state
     commentInputs,
     setCommentInputs,
@@ -221,6 +368,12 @@ export function useFeeds() {
     previewUrl,
     mediaType,
     fileInputRef,
+    manageMode,
+    manageTarget,
+    editCaption,
+    isUpdatingFeed,
+    isDeletingFeed,
+    setEditCaption,
     // actions
     actions: {
       fetchFeeds,
@@ -230,6 +383,11 @@ export function useFeeds() {
       clearFile,
       resetForm,
       handleCreateFeed,
+      openEditDialog,
+      openDeleteDialog,
+      closeManageDialog,
+      handleEditFeed,
+      handleDeleteFeed,
     },
     // current user (needed by modals)
     user,

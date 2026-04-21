@@ -27,6 +27,7 @@ export async function GET(request: Request) {
       .from('feeds')
       .select(`
         id_feed,
+        id_anggota,
         caption,
         media_url,
         media_type,

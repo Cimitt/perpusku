@@ -1,4 +1,5 @@
 export { FeedCard } from './FeedCard'
 export { FeedCommentModal } from './FeedCommentModal'
 export { FeedCreateModal } from './FeedCreateModal'
+export { FeedManageDialog } from './FeedManageDialog'
 export { FeedLoading, FeedEmpty } from './FeedStates'

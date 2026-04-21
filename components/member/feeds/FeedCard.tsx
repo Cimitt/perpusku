@@ -6,13 +6,21 @@ import {
   SendIcon,
   BookmarkIcon,
   MoreHorizontalIcon,
+  PencilIcon,
   StarIcon,
+  Trash2Icon,
 } from 'lucide-react'
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
+import { Card, CardFooter, CardHeader } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { formatTimeAgo } from './feed.utils'
 import type { FeedPost } from '@/types'
 
@@ -23,6 +31,9 @@ interface FeedCardProps {
   onCommentSubmit: (e: React.FormEvent) => void
   onLike: () => void
   onOpenComments: () => void
+  canManage: boolean
+  onEdit: () => void
+  onDelete: () => void
 }
 
 export function FeedCard({
@@ -32,6 +43,9 @@ export function FeedCard({
   onCommentSubmit,
   onLike,
   onOpenComments,
+  canManage,
+  onEdit,
+  onDelete,
 }: FeedCardProps) {
   return (
     <Card className="border-2 border-muted bg-white overflow-hidden shadow-sm">
@@ -56,9 +70,27 @@ export function FeedCard({
             </Badge>
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:bg-muted">
-          <MoreHorizontalIcon className="size-5" />
-        </Button>
+        {canManage && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon" className="text-muted-foreground hover:bg-muted" />
+              }
+            >
+              <MoreHorizontalIcon className="size-5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44 min-w-44">
+              <DropdownMenuItem className="cursor-pointer" onClick={onEdit}>
+                <PencilIcon className="size-4 text-slate-500" />
+                Edit Feed
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer" variant="destructive" onClick={onDelete}>
+                <Trash2Icon className="size-4" />
+                Hapus Feed
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </CardHeader>
 
       {/* Media */}
