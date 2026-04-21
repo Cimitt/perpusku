@@ -1,7 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Search,
   BookOpen,
@@ -57,6 +60,17 @@ const showcaseBooks = [
 ]
 
 function Navbar() {
+  const router = useRouter()
+  const [search, setSearch] = useState('')
+
+  const handleSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const query = search.trim()
+    const catalogPath = query ? `/members/books?q=${encodeURIComponent(query)}` : '/members/books'
+
+    router.push(`/sign-in?redirect_url=${encodeURIComponent(catalogPath)}`)
+  }
+
   return (
     <nav className='sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md'>
       <div className='mx-auto flex max-w-7xl items-center justify-between px-4 py-4 md:px-8'>
@@ -67,21 +81,26 @@ function Navbar() {
           <span className='text-xl font-extrabold tracking-tight text-foreground'>PerpuSmuhda</span>
         </div>
 
-        <div className='hidden md:flex flex-1 max-w-md mx-8'>
+        <form onSubmit={handleSearch} className='hidden md:flex flex-1 max-w-md mx-8'>
           <div className='relative w-full group'>
             <Search className='absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground group-focus-within:text-primary transition-colors' />
             <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder='Cari buku, penulis, atau ISBN...'
               className='w-full rounded-full border border-border bg-muted/50 py-2.5 pl-10 pr-4 text-sm text-foreground outline-none transition-all focus:border-primary focus:bg-background focus:ring-4 focus:ring-primary/10'
             />
           </div>
-        </div>
+        </form>
 
         <div className='flex items-center gap-3'>
-          <Button variant='ghost' className='hidden sm:flex hover:text-primary hover:bg-primary/10'>
+          <Button asChild variant='ghost' className='hidden sm:flex hover:text-primary hover:bg-primary/10'>
             <Link href='/sign-in'>Masuk</Link>
           </Button>
-          <Button className='bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-6 shadow-md shadow-primary/20'>
+          <Button asChild variant='outline' className='flex md:hidden rounded-full px-4 font-bold'>
+            <Link href='/sign-in?redirect_url=%2Fmembers%2Fbooks'>Cari Buku</Link>
+          </Button>
+          <Button asChild className='bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-6 shadow-md shadow-primary/20'>
             <Link href='/sign-up'>Daftar</Link>
           </Button>
         </div>
@@ -108,7 +127,7 @@ function HeroCarousel() {
           className='flex transition-transform duration-700 ease-in-out'
           style={{ transform: `translateX(-${current * 100}%)` }}
         >
-          {carouselSlides.map((slide) => (
+          {carouselSlides.map((slide, index) => (
             <div key={slide.id} className={`w-full shrink-0 flex flex-col md:flex-row min-h-[400px] md:min-h-[500px] ${slide.bg}`}>
               <div className='flex-1 p-8 md:p-16 flex flex-col justify-center'>
                 <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border w-fit mb-6 backdrop-blur-sm ${slide.badgeColor}`}>
@@ -121,12 +140,19 @@ function HeroCarousel() {
                 <p className='text-lg md:text-xl max-w-lg mb-8 leading-relaxed opacity-90'>
                   {slide.desc}
                 </p>
-                <Button size='lg' className='w-fit bg-background text-foreground hover:bg-muted rounded-full h-14 px-8 font-bold' >
+                <Button asChild size='lg' className='w-fit bg-background text-foreground hover:bg-muted rounded-full h-14 px-8 font-bold' >
                   <Link href='/sign-up'>Lihat Katalog <ArrowRight className='ml-2 size-5' /></Link>
                 </Button>
               </div>
               <div className='hidden md:block md:w-2/5 relative'>
-                <img src={slide.img} alt={slide.title} className='absolute inset-0 w-full h-full object-cover' />
+                <Image
+                  src={slide.img}
+                  alt={slide.title}
+                  fill
+                  sizes='(min-width: 768px) 40vw, 100vw'
+                  {...(index === 0 ? { preload: true } : { loading: 'lazy' as const })}
+                  className='object-cover'
+                />
                 {/* Overlay transisi warna gradient */}
                 <div className={`absolute inset-0 bg-gradient-to-r ${slide.id === 1 ? 'from-primary' : slide.id === 2 ? 'from-foreground' : 'from-accent'} md:via-transparent to-transparent`} />
               </div>
@@ -140,6 +166,8 @@ function HeroCarousel() {
             <button
               key={i}
               onClick={() => setCurrent(i)}
+              aria-label={`Tampilkan slide ${i + 1}: ${carouselSlides[i].title}`}
+              aria-current={current === i ? 'true' : undefined}
               className={`h-2.5 rounded-full transition-all duration-300 ${
                 current === i ? 'w-8 bg-background' : 'w-2.5 bg-background/40 hover:bg-background/60'
               }`}
@@ -187,6 +215,15 @@ function HowItWorks() {
 }
 
 function BooksCarousel() {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const scrollBooks = (direction: 'previous' | 'next') => {
+    scrollRef.current?.scrollBy({
+      left: direction === 'next' ? 460 : -460,
+      behavior: 'smooth',
+    })
+  }
+
   return (
     <section className='py-20'>
       <div className='max-w-7xl mx-auto px-4 md:px-8'>
@@ -196,27 +233,43 @@ function BooksCarousel() {
             <p className='text-muted-foreground mt-2'>Paling sering dipinjam bulan ini</p>
           </div>
           <div className='hidden sm:flex gap-2'>
-            <button className='w-12 h-12 rounded-full border border-border flex items-center justify-center hover:bg-muted hover:text-primary transition-colors'>
+            <button
+              type='button'
+              onClick={() => scrollBooks('previous')}
+              aria-label='Geser buku populer sebelumnya'
+              className='w-12 h-12 rounded-full border border-border flex items-center justify-center hover:bg-muted hover:text-primary transition-colors'
+            >
               <ChevronLeft size={20} />
             </button>
-            <button className='w-12 h-12 rounded-full border border-border flex items-center justify-center hover:bg-muted hover:text-primary transition-colors'>
+            <button
+              type='button'
+              onClick={() => scrollBooks('next')}
+              aria-label='Geser buku populer berikutnya'
+              className='w-12 h-12 rounded-full border border-border flex items-center justify-center hover:bg-muted hover:text-primary transition-colors'
+            >
               <ChevronRight size={20} />
             </button>
           </div>
         </div>
 
         {/* Horizontal Scroll / Carousel Container */}
-        <div className='flex gap-6 overflow-x-auto pb-8 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+        <div ref={scrollRef} className='flex gap-6 overflow-x-auto pb-8 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
           {showcaseBooks.map((book) => (
             <div key={book.id} className='snap-start shrink-0 w-[160px] md:w-[200px] group cursor-pointer'>
               <div className='relative mb-4 overflow-hidden rounded-xl shadow-md border border-border group-hover:shadow-2xl group-hover:shadow-primary/20 transition-all duration-300'>
-                <img 
-                  src={book.cover} 
-                  alt={book.title} 
-                  className='w-full aspect-[2/3] object-cover group-hover:scale-105 transition-transform duration-500' 
+                <Image
+                  src={book.cover}
+                  alt={book.title}
+                  width={200}
+                  height={300}
+                  sizes='(max-width: 768px) 160px, 200px'
+                  loading='lazy'
+                  className='w-full aspect-[2/3] object-cover group-hover:scale-105 transition-transform duration-500'
                 />
                 <div className='absolute inset-0 bg-gradient-to-t from-foreground/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4'>
-                  <Button size='sm' className='w-full bg-primary hover:bg-primary/90 text-primary-foreground'>Pinjam</Button>
+                  <Button asChild size='sm' className='w-full bg-primary hover:bg-primary/90 text-primary-foreground'>
+                    <Link href='/sign-in?redirect_url=%2Fmembers%2Fbooks'>Pinjam</Link>
+                  </Button>
                 </div>
               </div>
               <h3 className='font-bold text-base text-foreground leading-snug mb-1 truncate'>{book.title}</h3>
@@ -243,7 +296,7 @@ function CTABanner() {
           <p className='text-muted-foreground text-lg mb-10'>
             Bergabung dengan ratusan siswa lainnya. Daftar gratis sekarang dan nikmati kemudahan akses ke seluruh koleksi PerpuSmuhda.
           </p>
-          <Button size='lg' className='bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-full px-10 h-14 text-lg shadow-lg shadow-primary/30' >
+          <Button asChild size='lg' className='bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-full px-10 h-14 text-lg shadow-lg shadow-primary/30' >
             <Link href='/sign-up'>Buat Akun Sekarang</Link>
           </Button>
         </div>

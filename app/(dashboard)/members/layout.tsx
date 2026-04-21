@@ -116,8 +116,7 @@ export default function MembersLayout({ children }: { children: ReactNode }) {
   }))
 
   return (
-    // 1. Tambahkan h-screen dan overflow-hidden agar scrollbar window hilang
-    <div className='flex h-screen w-full overflow-hidden'>
+    <div className='flex h-dvh w-full overflow-hidden'>
       <SidebarProvider>
         {/* 2. Sidebar secara default di shadcn sudah sticky/fixed di dalam SidebarProvider */}
         <Sidebar collapsible="offcanvas">
@@ -163,8 +162,7 @@ export default function MembersLayout({ children }: { children: ReactNode }) {
         </Sidebar>
 
         {/* ── Main Area ── */}
-        {/* 3. Berikan h-screen dan overflow-hidden pada wrapper konten utama */}
-        <div className='flex flex-1 flex-col h-screen overflow-hidden'>
+        <div className='flex h-dvh flex-1 flex-col overflow-hidden'>
           
           {/* ── Header ── */}
           <header className='sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-full'>
@@ -206,25 +204,24 @@ export default function MembersLayout({ children }: { children: ReactNode }) {
           </header>
 
           {/* ── Content Area ── */}
-          {/* 4. Bagian ini yang akan memiliki scrollbar sendiri */}
-          <main className='flex-1 overflow-y-auto bg-muted/10'>
+          <main className='min-h-0 flex-1 overflow-y-auto bg-muted/10'>
             <div className='mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8'>
               {children}
             </div>
-            
-            {/* ── Footer ── */}
-            {/* Footer diletakkan di dalam main agar ikut ter-scroll di bawah konten, 
-                atau di luar main jika ingin footer selalu tampak (sticky bottom) */}
-            <footer className='border-t bg-card mt-auto'>
-              <div className='mx-auto flex w-full max-w-7xl items-center justify-between p-4 text-sm text-muted-foreground sm:px-6'>
-                <p>© {new Date().getFullYear()} <span className='font-medium text-primary'>PerpuSmuhda</span>.</p>
-                <div className='flex items-center gap-1.5 text-xs'>
-                  <ClockIcon className='size-3.5' />
-                  <span>Student Portal</span>
-                </div>
-              </div>
-            </footer>
           </main>
+
+          <footer className='border-t bg-card mt-auto'>
+            <div className='mx-auto flex w-full max-w-7xl items-center justify-between p-4 text-sm text-muted-foreground sm:px-6'>
+              <p>
+                {`© ${new Date().getFullYear()} `}
+                <span className='font-medium text-primary'>PerpuSmuhda</span>.
+              </p>
+              <div className='flex items-center gap-1.5 text-xs'>
+                <ClockIcon className='size-3.5' />
+                <span>v1.0.0</span>
+              </div>
+            </div>
+          </footer>
 
         </div>
       </SidebarProvider>

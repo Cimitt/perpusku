@@ -124,6 +124,11 @@ export default function BrowseCatalogPage() {
   }, [])
 
   useEffect(() => {
+    const initialQuery = new URLSearchParams(window.location.search).get('q')
+    if (initialQuery) setSearch(initialQuery)
+  }, [])
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       setDisplayLimit(10) // Reset limit saat filter berubah
       fetchBooks(search, selectedCategoryId)
@@ -321,8 +326,10 @@ export default function BrowseCatalogPage() {
 
             return (
               <Card key={book.id_buku} className="group flex flex-col overflow-hidden border-2 transition-all hover:border-primary/40">
-                <div
-                  className="relative aspect-[3/4] cursor-pointer bg-slate-100"
+                <button
+                  type="button"
+                  className="relative aspect-[3/4] w-full cursor-pointer overflow-hidden bg-slate-100 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  aria-label={`Lihat detail ${book.judul_buku}`}
                   onClick={() => { setSelectedBook(book); setIsModalOpen(true) }}
                 >
                   {book.gambar_buku ? (
@@ -344,7 +351,7 @@ export default function BrowseCatalogPage() {
                       {qtyInCart} DI KERANJANG
                     </div>
                   )}
-                </div>
+                </button>
 
                 <CardContent className="p-3 flex-1">
                   <h3 className="line-clamp-2 text-[13px] font-bold leading-tight mb-1">{book.judul_buku}</h3>
@@ -383,6 +390,7 @@ export default function BrowseCatalogPage() {
       {totalItemsInCart > 0 && (
         <Button
           onClick={() => setIsCartOpen(true)}
+          aria-label={`Buka keranjang pinjaman, ${totalItemsInCart} buku`}
           className="fixed bottom-6 right-6 size-14 rounded-full shadow-2xl z-50 animate-in zoom-in"
         >
           <ShoppingBagIcon className="size-6" />
@@ -454,6 +462,7 @@ export default function BrowseCatalogPage() {
                                 {anggota?.nama_anggota || 'Anonim'}
                               </span>
                               <div className="flex items-center gap-0.5 flex-shrink-0">
+                                <span className="sr-only">{review.rating} dari 5 bintang</span>
                                 {Array.from({ length: 5 }).map((_, i) => (
                                   <StarIcon
                                     key={i}
@@ -507,11 +516,33 @@ export default function BrowseCatalogPage() {
                   <p className="text-[10px] text-muted-foreground">Stok: {item.stok_tersedia}</p>
                 </div>
                 <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
-                  <button onClick={() => decreaseQty(item.id_buku)} className="size-6 bg-white rounded border flex items-center justify-center"><MinusIcon className="size-3" /></button>
+                  <button
+                    type="button"
+                    onClick={() => decreaseQty(item.id_buku)}
+                    aria-label={`Kurangi jumlah ${item.judul_buku}`}
+                    className="size-6 bg-white rounded border flex items-center justify-center"
+                  >
+                    <MinusIcon className="size-3" />
+                  </button>
                   <span className="text-xs font-bold w-3 text-center">{item.qty}</span>
-                  <button onClick={() => addToCart(item)} disabled={item.qty >= item.stok_tersedia} className="size-6 bg-white rounded border flex items-center justify-center disabled:opacity-50"><PlusIcon className="size-3" /></button>
+                  <button
+                    type="button"
+                    onClick={() => addToCart(item)}
+                    disabled={item.qty >= item.stok_tersedia}
+                    aria-label={`Tambah jumlah ${item.judul_buku}`}
+                    className="size-6 bg-white rounded border flex items-center justify-center disabled:opacity-50"
+                  >
+                    <PlusIcon className="size-3" />
+                  </button>
                 </div>
-                <button onClick={() => removeFromCart(item.id_buku)} className="text-slate-400 hover:text-red-500 p-1"><XIcon className="size-4" /></button>
+                <button
+                  type="button"
+                  onClick={() => removeFromCart(item.id_buku)}
+                  aria-label={`Hapus ${item.judul_buku} dari keranjang`}
+                  className="text-slate-400 hover:text-red-500 p-1"
+                >
+                  <XIcon className="size-4" />
+                </button>
               </div>
             ))}
           </div>

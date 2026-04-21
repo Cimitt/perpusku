@@ -15,25 +15,25 @@ type AuthPageShellProps = {
 const benefits = [
   {
     icon: BookOpen,
-    title: 'Catalog',
+    title: 'Katalog',
   },
   {
     icon: Radio,
-    title: 'Borrow',
+    title: 'Pinjam',
   },
   {
     icon: Play,
-    title: 'Read',
+    title: 'Baca',
   },
   {
     icon: Music2,
-    title: 'Discuss',
+    title: 'Diskusi',
   },
 ]
 
 export const clerkAuthAppearance = {
   variables: {
-    colorPrimary: 'oklch(0.68 0.16 12)',
+    colorPrimary: 'oklch(0.52 0.16 5)',
     colorText: 'oklch(0.25 0.02 260)',
     colorTextSecondary: 'oklch(0.5 0.03 260)',
     colorBackground: 'oklch(1 0 0)',
@@ -97,14 +97,14 @@ export default function AuthPageShell({
               </Link>
 
               <div className="max-w-sm">
-                <p className="mb-3 text-xs font-bold text-white/76">Your library</p>
+                <p className="mb-3 text-xs font-bold text-white/76">Perpustakaanmu</p>
                 <h1 className="text-4xl font-bold leading-[1.08] text-white xl:text-5xl">
-                  Speed up your reading with our Web App
+                  Temukan dan pinjam buku lebih cepat
                 </h1>
               </div>
 
               <div>
-                <p className="mb-4 text-center text-xs font-bold text-white/58">Our powers</p>
+                <p className="mb-4 text-center text-xs font-bold text-white/58">Fitur utama</p>
                 <div className="grid grid-cols-4 gap-3">
                   {benefits.map((benefit) => (
                     <div key={benefit.title} className="flex items-center justify-center gap-1.5 text-xs font-bold text-white/82">

@@ -23,13 +23,13 @@ export default function DashboardPage() {
     [s?.recent_transactions]
   );
 
-  // ─── States ──────────────────────────────────────────────────────────────────
+  // states
 
   if (error) return <DashboardError message={error} onRetry={refetch} />;
   if (loading && !s) return <DashboardSkeleton />;
   if (!s) return null;
 
-  // ─── Render ───────────────────────────────────────────────────────────────────
+  // render
 
   return (
     <div className="flex flex-col gap-6 p-6 animate-in fade-in duration-500">

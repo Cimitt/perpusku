@@ -292,6 +292,7 @@ export function BookFormDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <fieldset disabled={loading} className="space-y-4 disabled:opacity-75">
           {/* ── Layout: cover kiri, form kanan (pada layar lebih lebar) ── */}
           <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
 
@@ -401,6 +402,7 @@ export function BookFormDialog({
               {...register('deskripsi_buku')}
             />
           </div>
+          </fieldset>
 
           <DialogFooter>
             <Button
@@ -413,11 +415,16 @@ export function BookFormDialog({
               Batal
             </Button>
             <Button type="submit" size="sm" disabled={loading}>
-              {loading
-                ? 'Menyimpan...'
-                : mode === 'create'
-                  ? 'Tambah Buku'
-                  : 'Simpan Perubahan'}
+              {loading ? (
+                <>
+                  <Loader2Icon className="mr-2 size-4 animate-spin" />
+                  Menyimpan...
+                </>
+              ) : mode === 'create' ? (
+                'Tambah Buku'
+              ) : (
+                'Simpan Perubahan'
+              )}
             </Button>
           </DialogFooter>
         </form>

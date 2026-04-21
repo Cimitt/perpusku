@@ -69,7 +69,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }))
 
   return (
-    <div className='flex min-h-dvh w-full'>
+    <div className='flex h-dvh w-full overflow-hidden'>
       <SidebarProvider>
         <Sidebar>
           <SidebarContent>
@@ -99,7 +99,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     >
                       <a href='/admin'>
                         <HomeIcon />
-                        <span>Dasboard</span>
+                        <span>Dashboard</span>
                       </a>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -267,7 +267,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </Sidebar>
 
         {/* Main Area */}
-        <div className='flex flex-1 flex-col overflow-hidden'>
+        <div className='flex h-dvh flex-1 flex-col overflow-hidden'>
           {/* Header */}
           <header className='bg-card sticky top-0 z-50 border-b w-full'>
             <div className='flex items-center justify-between px-4 py-3 sm:px-6'>
@@ -302,7 +302,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </header>
 
           {/* Content */}
-          <main className='flex-1 overflow-y-auto bg-slate-50/50'>
+          <main className='min-h-0 flex-1 overflow-y-auto bg-slate-50/50'>
             <div className='mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8'>{children}</div>
           </main>
 
