@@ -30,7 +30,11 @@ type TransaksiWithBuku = Pick<
   | 'created_at'
   | 'jml_perpanjangan'
 > & {
-  buku: Pick<BukuRow, 'judul_buku' | 'pengarang' | 'gambar_buku'> | null
+  buku:
+    | (Pick<BukuRow, 'judul_buku' | 'pengarang' | 'gambar_buku'> & {
+        kategori?: { nama_kategori: string | null } | { nama_kategori: string | null }[] | null
+      })
+    | null
 }
 
 const STATUS_TRANSAKSI = ['pending', 'dipinjam', 'dikembalikan', 'terlambat', 'dibatalkan'] as const
@@ -70,7 +74,7 @@ export async function GET(req: NextRequest) {
       id_transaksi, id_anggota, id_buku,
       tgl_pinjam, tgl_kembali_rencana, tgl_kembali_aktual,
       status_transaksi, qr_token, denda, denda_dibayar, catatan, created_at, jml_perpanjangan,
-      buku (judul_buku, pengarang, gambar_buku)
+      buku (judul_buku, pengarang, gambar_buku, kategori(nama_kategori))
     `)
     .eq('id_anggota', idAnggota)
     .order('created_at', { ascending: false })
@@ -89,7 +93,19 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     data: (data ?? []).map((t) => ({
       ...t,
-      buku: Array.isArray(t.buku) ? t.buku[0] ?? null : t.buku,
+      buku: (() => {
+        const buku = Array.isArray(t.buku) ? t.buku[0] ?? null : t.buku
+        if (!buku) return null
+
+        const kategori = Array.isArray(buku.kategori)
+          ? buku.kategori[0] ?? null
+          : buku.kategori ?? null
+
+        return {
+          ...buku,
+          kategori,
+        }
+      })(),
     })),
   })
 }
