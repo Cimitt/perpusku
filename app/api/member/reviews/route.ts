@@ -11,7 +11,7 @@ const ReviewSchema = z.object({
 })
 
 async function getAnggota(clerkId: string) {
-  const supabase = await createServerSupabaseClient()
+  const supabase = createAdminClient()
   const { data } = await supabase
     .from('pengguna')
     .select('id_pengguna, anggota(id_anggota)')
@@ -69,7 +69,14 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const parsed = ReviewSchema.safeParse(await req.json())
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Body JSON tidak valid' }, { status: 400 })
+  }
+
+  const parsed = ReviewSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: 'Validasi gagal', details: parsed.error.flatten() }, { status: 400 })
   }
@@ -77,10 +84,48 @@ export async function POST(req: NextRequest) {
   const id_anggota = await getAnggota(userId)
   if (!id_anggota) return NextResponse.json({ error: 'Anggota tidak ditemukan' }, { status: 404 })
 
-  const supabase = createAdminClient() // Admin client needed for upsert across users
-  const { data, error } = await supabase
+  const supabase = createAdminClient()
+
+  const { data: returnedLoan, error: loanError } = await supabase
+    .from('transaksi')
+    .select('id_transaksi')
+    .eq('id_anggota', id_anggota)
+    .eq('id_buku', parsed.data.id_buku)
+    .eq('status_transaksi', 'dikembalikan')
+    .limit(1)
+    .maybeSingle()
+
+  if (loanError) return NextResponse.json({ error: 'Gagal memvalidasi riwayat peminjaman' }, { status: 500 })
+  if (!returnedLoan) {
+    return NextResponse.json({ error: 'Ulasan hanya bisa dibuat untuk buku yang sudah dikembalikan' }, { status: 403 })
+  }
+
+  const { data: existingReview, error: findError } = await supabase
     .from('ulasan_buku')
-    .upsert({ id_anggota, ...parsed.data }, { onConflict: 'id_anggota,id_buku' })
+    .select('id_ulasan')
+    .eq('id_anggota', id_anggota)
+    .eq('id_buku', parsed.data.id_buku)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (findError) return NextResponse.json({ error: 'Gagal memeriksa ulasan' }, { status: 500 })
+
+  const payload = {
+    rating: parsed.data.rating,
+    ulasan: parsed.data.ulasan.trim(),
+  }
+
+  const query = existingReview
+    ? supabase
+        .from('ulasan_buku')
+        .update({ ...payload, updated_at: new Date().toISOString() })
+        .eq('id_ulasan', existingReview.id_ulasan)
+    : supabase
+        .from('ulasan_buku')
+        .insert({ id_anggota, id_buku: parsed.data.id_buku, ...payload })
+
+  const { data, error } = await query
     .select()
     .single()
 
